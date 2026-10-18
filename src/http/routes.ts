@@ -1,3 +1,4 @@
+import { searchPolicy } from "../retrieval/policies.js";
 import type { FastifyInstance } from "fastify";
 import { Type, type Static } from "typebox";
 import type { AftercareBackend } from "../domain/backend.js";
@@ -19,6 +20,10 @@ export async function registerRoutes(app: FastifyInstance, service: AftercareBac
     routes.get<{ Params: Static<typeof LineLookupSchema> }>("/orders/:orderId/lines/:lineId/variants", {
       schema: { params: LineLookupSchema },
     }, async (request) => service.listVariants(demoActor(request), request.params.orderId, request.params.lineId));
+
+    routes.get<{ Params: Static<typeof OrderIdSchema>; Querystring: { query: string } }>("/orders/:orderId/policy/search", {
+      schema: { params: OrderIdSchema, querystring: Type.Object({ query: Type.String({ minLength: 1, maxLength: 1000 }) }, { additionalProperties: false }) },
+    }, async request => searchPolicy(service, demoActor(request), { orderId: request.params.orderId, query: request.query.query }));
 
     routes.post<{ Body: Static<typeof QuoteInputSchema> }>("/quotes", {
       schema: { body: QuoteInputSchema },

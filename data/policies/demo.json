@@ -1,0 +1,20 @@
+[
+  {
+    "id": "demo-aftercare-v1", "merchantId": "M-DEMO", "policyVersion": "demo-v1",
+    "title": "模拟商家服饰售后政策", "source": "policy://M-DEMO/demo-v1",
+    "effectiveFrom": "2026-01-01T00:00:00Z", "effectiveTo": null,
+    "chunks": [
+      {"id":"window","text":"退换货期限：签收后30天内可申请退货或换货。商品需保持完整，是否符合商品状态要求由人工验收，助手不能代替验收。"},
+      {"id":"exchange","text":"换货尺码与库存：支持同款不同尺码换货，不补差价。目标尺码必须有库存，提交申请时重新校验库存，方案生成时有库存不代表最终可用。"},
+      {"id":"refund","text":"退款金额与到账：退货按订单实付金额计算，不按吊牌价或现价计算。退款原路退回；申请创建成功表示等待寄回，不表示退款到账。本模拟环境不处理真实资金。"},
+      {"id":"confirmation","text":"方案确认与失效：提交申请前，用户必须明确确认具体商品、数量及金额的方案。方案有效期10分钟；订单、政策或库存版本变化需要重新报价并确认。终端使用 /confirm <方案ID> 完成确认。"},
+      {"id":"recovery","text":"提交失败与重试：遇到超时先按原业务操作键查询操作结果，再决定是否复用原键重试。相同操作键必须对应相同方案和确认记录，不能通过更换操作键重复创建。"}
+    ]
+  },
+  {
+    "id":"demo-aftercare-archived", "merchantId":"M-DEMO", "policyVersion":"demo-v0",
+    "title":"已失效的旧政策", "source":"policy://M-DEMO/demo-v0",
+    "effectiveFrom":"2025-01-01T00:00:00Z", "effectiveTo":"2026-01-01T00:00:00Z",
+    "chunks":[{"id":"window","text":"旧版退换货期限为签收后7天。此条款已失效。"}]
+  }
+]

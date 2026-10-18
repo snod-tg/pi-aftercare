@@ -21,3 +21,9 @@ export const ConfirmSchema = Type.Object({ confirmed: Type.Literal(true) }, { ad
 export const OrderIdSchema = Type.Object({ orderId: IdSchema }, { additionalProperties: false });
 export const LineLookupSchema = Type.Object({ orderId: IdSchema, lineId: IdSchema }, { additionalProperties: false });
 export const OperationLookupSchema = Type.Object({ idempotencyKey: IdSchema }, { additionalProperties: false });
+
+export const PolicySearchSchema = Type.Object({
+  orderId: IdSchema,
+  query: Type.String({ minLength: 1, maxLength: 1000 }),
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 5 })),
+}, { additionalProperties: false });

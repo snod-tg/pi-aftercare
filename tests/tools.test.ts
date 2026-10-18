@@ -8,7 +8,7 @@ import { DEMO_ALICE } from "../src/domain/seed.js";
 
 test("tools bind identity in the host and never expose a confirmation tool", async () => {
   const tools = createAftercareTools(new AftercareService(), DEMO_ALICE);
-  assert.equal(tools.length, 6);
+  assert.equal(tools.length, 7);
   assert.ok(!tools.some((tool) => /confirm/.test(tool.name)));
   const orderTool = tools.find((tool) => tool.name === "get_order")!;
   assert.equal(Check(orderTool.parameters, { orderId: "O-1001", customerId: "C-BOB" }), false);

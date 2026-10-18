@@ -26,11 +26,11 @@ const { session } = await createAftercareSession({
 
 try {
   assert.deepEqual(session.getActiveToolNames().sort(), [
-    "get_order", "get_aftercare_policy", "list_variants", "quote_aftercare",
+    "search_aftercare_policy", "get_order", "get_aftercare_policy", "list_variants", "quote_aftercare",
     "create_aftercare_request", "get_request_status",
   ].sort());
   assert.match(session.systemPrompt, /Pi Aftercare/);
-  console.log("Pi session created with six business tools and no coding tools; no model API was called.");
+  console.log("Pi session created with seven business tools and no coding tools; no model API was called.");
 } finally {
   session.dispose();
 }
