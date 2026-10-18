@@ -1,27 +1,8 @@
 import assert from "node:assert/strict";
-import {
-  createAgentSession,
-  createExtensionRuntime,
-  ModelRuntime,
-  type ResourceLoader,
-  SessionManager,
-  SettingsManager,
-} from "@earendil-works/pi-coding-agent";
-
-// Keep the initialization check offline and independent of personal Pi settings.
-const resourceLoader: ResourceLoader = {
-  getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }),
-  getSkills: () => ({ skills: [], diagnostics: [] }),
-  getPrompts: () => ({ prompts: [], diagnostics: [] }),
-  getThemes: () => ({ themes: [], diagnostics: [] }),
-  getAgentsFiles: () => ({ agentsFiles: [] }),
-  getSystemPrompt: () => "You are the Pi Aftercare development assistant.",
-  getSystemPromptSource: () => undefined,
-  getAppendSystemPrompt: () => [],
-  getAppendSystemPromptSources: () => [],
-  extendResources: () => {},
-  reload: async () => {},
-};
+import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { createAftercareSession } from "../src/agent/session.js";
+import { AftercareService } from "../src/domain/aftercare.js";
+import { DEMO_ALICE } from "../src/domain/seed.js";
 
 const modelRuntime = await ModelRuntime.create({
   credentials: {
@@ -37,19 +18,19 @@ const modelRuntime = await ModelRuntime.create({
   refreshOnCreate: false,
 });
 
-const { session } = await createAgentSession({
-  cwd: process.cwd(),
+const { session } = await createAftercareSession({
+  service: new AftercareService(),
+  actor: DEMO_ALICE,
   modelRuntime,
-  resourceLoader,
-  tools: [],
-  sessionManager: SessionManager.inMemory(),
-  settingsManager: SettingsManager.inMemory({ retry: { enabled: false } }),
 });
 
 try {
-  assert.deepEqual(session.getActiveToolNames(), []);
+  assert.deepEqual(session.getActiveToolNames().sort(), [
+    "get_order", "get_aftercare_policy", "list_variants", "quote_aftercare",
+    "create_aftercare_request", "get_request_status",
+  ].sort());
   assert.match(session.systemPrompt, /Pi Aftercare/);
-  console.log("Pi SDK loaded and session created successfully; no model API was called.");
+  console.log("Pi session created with six business tools and no coding tools; no model API was called.");
 } finally {
   session.dispose();
 }

@@ -6,7 +6,9 @@
 
 完成项目骨架、独立运行环境和依赖配置，并实现退换货业务的内存模拟：订单归属、同款尺码换货、部分退货、方案确认、库存版本校验、申请创建和幂等重试。当前不提供真实退换货或资金操作，数据不持久化。
 
-2026-10-18 初始化验证通过：TypeScript 类型检查、Pi SDK 离线会话创建、健康接口检查、编译、编译产物启动及本机 HTTP 请求、Python 虚拟环境和依赖导入。验证完成后已停止临时服务。Git 仓库已初始化，尚未创建提交。
+HTTP 接口与 6 个 Pi 业务工具已实现，19 项业务/接口/工具测试通过。`npm run demo` 可以离线演示“T 恤换 L 码、外套退货”及请求结果丢失后的查询和幂等重试。SDK 检查会创建只包含业务工具的 Pi 会话；尚未配置模型或执行模型驱动的对话。售后政策当前是结构化模拟规则，尚未实现 RAG。
+
+2026-10-18 初始化验证通过：TypeScript 类型检查、Pi SDK 离线会话创建、健康接口检查、编译、编译产物启动及本机 HTTP 请求、Python 虚拟环境和依赖导入。验证完成后已停止临时服务。Git 仓库已初始化；按照项目协作要求，每完成一组修改并验证后创建提交。
 
 ## 环境
 
@@ -44,6 +46,23 @@ npm run dev
 
 初始化检查不需要模型 API key，也不发起模型调用。后续启用模型和数据库时再配置 `.env`；示例在 `.env.example`，真实配置不入 Git。
 
+## 业务演示
+
+```bash
+./scripts/npm run demo
+./scripts/npm test
+```
+
+服务启动后，查询演示客户 Alice 的订单：
+
+```bash
+curl -H 'Authorization: Bearer demo-alice' http://127.0.0.1:3000/orders/O-1001
+```
+
+另一位演示客户 Bob 使用 `Bearer demo-bob`，订单为 `O-2001`。令牌是本地模拟数据，不是生产登录机制；所有实例默认只监听本机。数据保存在进程内存，重启或开发模式重新加载会重置。
+
+接口、工具与规则见 [业务闭环说明](docs/业务闭环.md)。
+
 ## 依赖
 
 - 应用：Pi SDK、Fastify、pg、dotenv、typebox。
@@ -55,9 +74,13 @@ npm run dev
 ## 目录
 
 ```text
-src/             TypeScript 应用
+src/domain/      订单、方案、确认、申请与模拟数据
+src/http/        HTTP 路由和演示身份
+src/agent/       Pi 业务工具及会话工厂
+tests/           业务约束、接口和工具测试
 scripts/         环境入口及初始化检查
 evals/           Python 评测与数据脚本
+docs/            业务流程与接口说明
 .runtime/node/   本地 Node.js（忽略）
 .venv/           Python 虚拟环境（忽略）
 node_modules/    Node 依赖（忽略）
@@ -68,3 +91,9 @@ node_modules/    Node 依赖（忽略）
 已有项目 Node 环境时运行 `./scripts/npm ci`。Python 使用 `uv sync --frozen --cache-dir .cache/uv`；如本机缺少 Python 3.12，需要先提供对应解释器。
 
 `.runtime/` 不进入 Git；换机器时按 `.node-version` 安装匹配平台的 Node.js，并放到 `.runtime/node/`，或使用自己的版本管理器按此版本启动 npm。
+
+## 开发进度
+
+当前完成：模拟业务闭环、HTTP API、Pi 工具注册、业务约束测试。
+
+后续依次实现：真实模型多轮交互和人工确认衔接、PostgreSQL 持久化与事务、政策检索、故障注入和 τ-bench 适配。内存中的幂等记录在重启后会丢失，当前结果不能视为已实现跨进程或重启恢复。
