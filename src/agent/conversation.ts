@@ -1,3 +1,4 @@
+import type { ToolFaultInjector } from "../evaluation/faults.js";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { AftercareBackend, OperationResult } from "../domain/backend.js";
 import { DomainError } from "../domain/errors.js";
@@ -76,6 +77,7 @@ export class AgentConversation {
     limits?: RunLimits;
     fetch?: typeof globalThis.fetch;
     restorePendingQuotes?: boolean;
+    faults?: ToolFaultInjector;
   }) {
     const limits = { ...readRunLimits({}), ...options.limits };
     if (Object.values(limits).some((value) => !Number.isSafeInteger(value) || value < 1)) {
@@ -89,6 +91,7 @@ export class AgentConversation {
       modelRuntime,
       model,
       toolHooks: {
+        aroundTool: (name, operation) => options.faults ? options.faults.run(name, operation) : Promise.resolve(operation()),
         beforeTool: () => conversation.beforeTool(),
         onQuote: (quote) => {
           for (const [id, old] of conversation.quotes) {

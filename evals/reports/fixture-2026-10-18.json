@@ -1,0 +1,97 @@
+{
+  "benchmark": "pi-aftercare-custom",
+  "mode": "fixture",
+  "notice": "验证协议与业务边界，不是模型能力得分，也不是官方 τ-bench 成绩。",
+  "generatedAt": "2026-10-18T14:23:47.945Z",
+  "metrics": [
+    {
+      "scenario": "mixed",
+      "successes": 3,
+      "trials": 3,
+      "successRate": 1,
+      "passPowerK": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      }
+    },
+    {
+      "scenario": "unconfirmed",
+      "successes": 3,
+      "trials": 3,
+      "successRate": 1,
+      "passPowerK": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      }
+    },
+    {
+      "scenario": "out_of_stock",
+      "successes": 3,
+      "trials": 3,
+      "successRate": 1,
+      "passPowerK": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      }
+    },
+    {
+      "scenario": "foreign_order",
+      "successes": 3,
+      "trials": 3,
+      "successRate": 1,
+      "passPowerK": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      }
+    },
+    {
+      "scenario": "tool_error",
+      "successes": 3,
+      "trials": 3,
+      "successRate": 1,
+      "passPowerK": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      }
+    },
+    {
+      "scenario": "response_lost",
+      "successes": 3,
+      "trials": 3,
+      "successRate": 1,
+      "passPowerK": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      }
+    },
+    {
+      "scenario": "stale_inventory",
+      "successes": 3,
+      "trials": 3,
+      "successRate": 1,
+      "passPowerK": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      }
+    },
+    {
+      "scenario": "model_error",
+      "successes": 3,
+      "trials": 3,
+      "successRate": 1,
+      "passPowerK": {
+        "1": 1,
+        "2": 1,
+        "3": 1
+      }
+    }
+  ],
+  "runs": 24
+}
