@@ -89,6 +89,25 @@ test("invalid tool arguments are fed back through Pi and can be corrected", asyn
   } finally { await conversation.close(); }
 });
 
+test("whitespace-only IDs are rejected by the business tool and can be corrected", async () => {
+  const state = createDemoState();
+  const api = mockApi((_body, index) => {
+    if (index === 0) return { calls: [{ name: "get_order", args: { orderId: " \t\n\u3000" } }] };
+    if (index === 1) return { calls: [{ name: "get_order", args: { orderId: "O-1001" } }] };
+    return { text: "已查询到订单，尚未创建售后申请。" };
+  });
+  const conversation = await AgentConversation.create({ service: new AftercareService(state), actor: DEMO_ALICE, connection, fetch: api.transport });
+  try {
+    const result = await conversation.run("查询订单");
+    assert.equal(result.status, "completed");
+    assert.ok(result.trace.some((event) => event.type === "tool_end" && event.ok === false));
+    assert.match(JSON.stringify(api.requests[1]?.messages), /INVALID_ID/);
+    assert.match(JSON.stringify(api.requests[2]?.messages), /C-ALICE/);
+    assert.equal(state.requests.size, 0);
+    assert.equal(state.quotes.size, 0);
+  } finally { await conversation.close(); }
+});
+
 test("repeated model tool requests stop at the configured model-call boundary", async () => {
   const api = mockApi(() => ({ calls: [{ name: "get_order", args: { orderId: "O-1001" } }] }));
   const conversation = await AgentConversation.create({ service: new AftercareService(), actor: DEMO_ALICE, connection, fetch: api.transport,

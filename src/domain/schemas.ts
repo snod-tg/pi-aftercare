@@ -1,6 +1,8 @@
 import { Type } from "typebox";
 
-export const IdSchema = Type.String({ minLength: 1, maxLength: 120, pattern: "\\S" });
+// Keep the wire schema portable to JSON-schema-to-grammar converters.
+// AftercareService rejects whitespace-only IDs independently of model generation.
+export const IdSchema = Type.String({ minLength: 1, maxLength: 120, description: "1–120 字符的非空白标识，使用工具返回的原始值。" });
 const quantity = Type.Integer({ minimum: 1 });
 export const ActionSchema = Type.Union([
   Type.Object({ kind: Type.Literal("return"), lineId: IdSchema, quantity }, { additionalProperties: false }),

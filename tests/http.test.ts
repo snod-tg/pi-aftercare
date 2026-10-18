@@ -58,3 +58,19 @@ test("domain conflict codes reach callers and invalid payloads do not expose int
     assert.equal(malformed.json().error.code, "INVALID_REQUEST");
   } finally { await app.close(); }
 });
+
+test("HTTP rejects whitespace-only IDs after portable schema validation", async () => {
+  const app = buildApp({ logger: false });
+  try {
+    for (const orderId of [" ", "\t\n", "\u3000", "\u00a0"]) {
+      const response = await app.inject({ method: "POST", url: "/quotes", headers: auth, payload: { ...payload, orderId } });
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.json().error.code, "INVALID_ID");
+    }
+    const response = await app.inject({ method: "POST", url: "/requests", headers: auth, payload: {
+      quoteId: "Q-unknown", confirmationId: "CF-unknown", idempotencyKey: " \t\u3000",
+    } });
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error.code, "INVALID_ID");
+  } finally { await app.close(); }
+});
