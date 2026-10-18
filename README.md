@@ -67,6 +67,8 @@ curl -H 'Authorization: Bearer demo-alice' http://127.0.0.1:3000/orders/O-1001
 
 ## 依赖
 
+模型通过外部兼容 Chat Completions 的 HTTP API 接入，配置见 `.env.example` 的 `MODEL_*` 字段。Agent 不启动、停止或加载推理服务，不读取模型权重。推理服务与业务项目独立运行，连接地址可按部署环境调整。
+
 - 应用：Pi SDK、Fastify、pg、dotenv、typebox。
 - 开发：TypeScript、tsx、Node.js/pg 类型定义。
 - Python：httpx；开发依赖 pytest。
