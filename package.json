@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "demo": "node --import tsx scripts/demo.ts",
+    "chat": "node --import tsx scripts/chat.ts",
     "check:sdk": "node --import tsx scripts/check-sdk.ts",
     "check:http": "node --import tsx scripts/check-http.ts",
     "check": "npm run typecheck && npm test && npm run check:sdk && npm run check:http && npm run build"
