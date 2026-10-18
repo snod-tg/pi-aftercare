@@ -25,7 +25,8 @@
     "test:postgres": "node --import tsx scripts/test-postgres.ts",
     "eval": "node --import tsx scripts/eval.ts",
     "check:tau": ".venv/bin/python -m pytest evals/tests -q",
-    "tau:smoke": ".venv/bin/python -m evals.run_tau --smoke"
+    "tau:smoke": ".venv/bin/python -m evals.run_tau --smoke",
+    "tau:full": ".venv/bin/python -m evals.run_tau_full"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "1.2.0",

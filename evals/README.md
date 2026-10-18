@@ -53,3 +53,24 @@ Python 依赖在项目 `.venv` 内。tau 为可选依赖，常规业务不需要
 - 24 次自建 fixture 场景通过；1 次真实 9B τ 接口冒烟通过。
 
 这几类验证分别证明业务边界、事务一致性、接口兼容及单例模型可用性，不能相互替代。
+
+## 官方全量任务运行脚本
+
+脚本 `evals/run_tau_full.py` 开头附有运行指令，默认顺序遍历固定版本 test 集：retail 115 个、airline 50 个，共 165 个。模型服务需独立启动，连接配置读取 `.env`。
+
+```bash
+# 先列任务，不调用模型
+./scripts/npm run tau:full -- --domain all --split test --dry-run
+# 全量，每个任务跑1次
+./scripts/npm run tau:full -- --domain all --split test --trials 1
+# Ctrl+C 中断后，使用完全相同配置续跑
+./scripts/npm run tau:full -- --domain all --split test --trials 1 --resume
+```
+
+默认输出 `.data/evals/tau-full/`：manifest.json 固定任务、代码及不含密钥的配置，runs/ 按任务和 trial 原子保存完整记录，summary.json 每次更新覆盖率、成功率、错误分类与逐任务 pass^k。已有记录不会被默认覆盖；配置或代码变化会拒绝混合续跑，请改用新的 `--output` 目录。
+
+每个 trial 使用独立进程、全新官方环境，默认最长900秒；超时或中断会清理该 trial 的子进程，不会关闭独立模型服务。失败记录按0分保留，后续任务继续执行；续跑不会自动重跑已记录的失败。默认 --max-steps 30。airline 仅支持 test 集，dev/train 需指定 retail。
+
+完整流程结束时，有模型答错但没有执行错误仍退出0；存在接口错误或超时退出2；主动中断退出130。首次运行 --trials 3 可计算 pass^2/pass^3（会跑495次）；没有完成全部重复的任务不参与 pass^k 均值，须一起看覆盖率。
+
+全量执行器的任务枚举、检查点、断点续跑、配置隔离及部分结果汇总已有自动化验证，未自动运行165项真实模型任务。当前8192上下文可能不足以容纳官方完整规则与工具，超限会记录为错误；需在独立推理服务增大窗口，并同步 MODEL_CONTEXT_WINDOW 后再开始正式评测。这里使用本地 API 用户模拟器，结果不是官方排行榜配置的复现。
