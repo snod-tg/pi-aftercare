@@ -63,6 +63,8 @@ curl -H 'Authorization: Bearer demo-alice' http://127.0.0.1:3000/orders/O-1001
 
 接口、工具与规则见 [业务闭环说明](docs/业务闭环.md)。
 
+本地模型后端采用 Homebrew 安装的 llama.cpp；版本记录与待运行的模型启动命令见 [本地模型部署](docs/本地模型部署.md)。目前只确认推理程序已安装，尚未下载权重或完成真实模型接入。
+
 ## 依赖
 
 - 应用：Pi SDK、Fastify、pg、dotenv、typebox。
