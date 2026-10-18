@@ -1,0 +1,12 @@
+[project]
+name = "pi-aftercare-evals"
+version = "0.1.0"
+description = "Python evaluation and dataset utilities for Pi Aftercare"
+requires-python = ">=3.12,<3.13"
+dependencies = ["httpx>=0.28,<1"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[tool.uv]
+package = false
