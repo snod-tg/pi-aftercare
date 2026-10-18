@@ -1,9 +1,10 @@
 import Fastify from "fastify";
 import { AftercareService } from "./domain/aftercare.js";
+import type { AftercareBackend } from "./domain/backend.js";
 import { DomainError } from "./domain/errors.js";
 import { registerRoutes } from "./http/routes.js";
 
-export function buildApp(options: { service?: AftercareService; logger?: boolean } = {}) {
+export function buildApp(options: { service?: AftercareBackend; logger?: boolean } = {}) {
   const app = Fastify({
     logger: options.logger ?? true,
     ajv: { customOptions: { removeAdditional: false, coerceTypes: false } },

@@ -1,7 +1,11 @@
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 
-const app = buildApp();
+import { createBusinessRuntime } from "./storage/runtime.js";
+
+const runtime = await createBusinessRuntime();
+const app = buildApp({ service: runtime.service });
+app.addHook("onClose", () => runtime.close());
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {

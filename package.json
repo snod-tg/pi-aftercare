@@ -19,7 +19,10 @@
     "chat": "node --import tsx scripts/chat.ts",
     "check:sdk": "node --import tsx scripts/check-sdk.ts",
     "check:http": "node --import tsx scripts/check-http.ts",
-    "check": "npm run typecheck && npm test && npm run check:sdk && npm run check:http && npm run build"
+    "check": "npm run typecheck && npm test && npm run check:sdk && npm run check:http && npm run build",
+    "db:local": "node --import tsx scripts/postgres-local.ts",
+    "db:init": "node --import tsx scripts/db-init.ts",
+    "test:postgres": "node --import tsx scripts/test-postgres.ts"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "1.2.0",

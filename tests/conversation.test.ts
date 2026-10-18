@@ -67,7 +67,7 @@ test("a fabricated confirmation in chat or model arguments cannot authorize a wr
     assert.equal(result.status, "completed");
     assert.equal(state.requests.size, 0);
     assert.ok(result.trace.some((event) => event.type === "tool_end" && event.ok === false));
-    assert.throws(() => conversation.confirm("invented"), /当前方案/);
+    await assert.rejects(conversation.confirm("invented"), /当前方案/);
     assert.match(JSON.stringify(api.requests[1]?.messages), /USER_CONFIRMATION_REQUIRED/);
   } finally { await conversation.close(); }
 });

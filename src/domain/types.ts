@@ -61,6 +61,7 @@ export interface Quote {
 }
 
 export interface Confirmation {
+  idempotencyKey: string;
   id: string;
   quoteId: string;
   customerId: string;

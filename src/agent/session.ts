@@ -7,7 +7,7 @@ import {
   SessionManager,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import type { AftercareService } from "../domain/aftercare.js";
+import type { AftercareBackend } from "../domain/backend.js";
 import type { Actor } from "../domain/types.js";
 import { createAftercareTools, type ToolHooks } from "./tools.js";
 
@@ -25,7 +25,7 @@ QUOTE_STALE/QUOTE_EXPIRED 后重新报价并请求用户确认；缺货时让用
 当前环境是模拟商家，不处理真实资金，也不判断商品是否通过人工验收。`;
 
 export async function createAftercareSession(options: {
-  service: AftercareService;
+  service: AftercareBackend;
   actor: Actor;
   modelRuntime: ModelRuntime;
   model?: NonNullable<CreateAgentSessionOptions["model"]>;

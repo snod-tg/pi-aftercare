@@ -1,5 +1,5 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import { AftercareService } from "../domain/aftercare.js";
+import type { AftercareBackend } from "../domain/backend.js";
 import { DomainError } from "../domain/errors.js";
 import { CreateRequestSchema, LineLookupSchema, OperationLookupSchema, OrderIdSchema, QuoteInputSchema } from "../domain/schemas.js";
 import type { Actor, Quote } from "../domain/types.js";
@@ -10,9 +10,9 @@ export interface ToolHooks {
   authorizeCreate?: (input: { quoteId: string; confirmationId: string; idempotencyKey: string }) => void;
 }
 
-function result<T>(run: () => T) {
+async function result<T>(run: () => T | Promise<T>) {
   try {
-    const data = run();
+    const data = await run();
     return { content: [{ type: "text" as const, text: JSON.stringify(data) }], details: data };
   } catch (error) {
     if (error instanceof DomainError) throw new Error(`${error.code}: ${error.message}`, { cause: error });
@@ -20,7 +20,7 @@ function result<T>(run: () => T) {
   }
 }
 
-export function createAftercareTools(service: AftercareService, actor: Actor, hooks: ToolHooks = {}) {
+export function createAftercareTools(service: AftercareBackend, actor: Actor, hooks: ToolHooks = {}) {
   const identity = Object.freeze({ ...actor });
   const run = <T>(fn: () => T) => result(() => { hooks.beforeTool?.(); return fn(); });
   const readOnly = { readOnlyHint: true, openWorldHint: false };
@@ -43,8 +43,8 @@ export function createAftercareTools(service: AftercareService, actor: Actor, ho
     defineTool({
       name: "quote_aftercare", label: "生成售后方案", description: "为当前订单的退货/换尺码请求报价。不扣库存，不创建申请。方案有效期内仍需用户单独确认。",
       parameters: QuoteInputSchema, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false }, executionMode: "sequential",
-      execute: async (_id, params) => run(() => {
-        const quote = service.quote(identity, params.orderId, params.actions);
+      execute: async (_id, params) => run(async () => {
+        const quote = await service.quote(identity, params.orderId, params.actions);
         hooks.onQuote?.(structuredClone(quote));
         return quote;
       }),

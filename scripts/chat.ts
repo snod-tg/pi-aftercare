@@ -3,7 +3,7 @@ import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { AgentConversation, readRunLimits, type RunResult, type TraceEvent } from "../src/agent/conversation.js";
 import { readModelConnection } from "../src/agent/model-connection.js";
-import { AftercareService } from "../src/domain/aftercare.js";
+import { createBusinessRuntime } from "../src/storage/runtime.js";
 import { DEMO_ALICE } from "../src/domain/seed.js";
 
 const help = `输入售后需求开始对话，示例：订单 O-1001，T 恤换 L 码，外套退掉。
@@ -17,11 +17,13 @@ if (process.argv.includes("--help")) {
   console.log(help);
 } else {
   let conversation: AgentConversation | undefined;
+  let runtime: Awaited<ReturnType<typeof createBusinessRuntime>> | undefined;
   let rl: ReturnType<typeof createInterface> | undefined;
   try {
     const connection = readModelConnection();
-    const service = new AftercareService();
-    const create = () => AgentConversation.create({ service, actor: DEMO_ALICE, connection, limits: readRunLimits() });
+    runtime = await createBusinessRuntime();
+    const service = runtime.service;
+    const create = () => AgentConversation.create({ service, actor: DEMO_ALICE, connection, restorePendingQuotes: runtime!.persistent, limits: readRunLimits() });
     conversation = await create();
     console.log(`Pi Aftercare → ${connection.baseUrl} / ${connection.modelName}`);
     console.log("模拟客户 Alice；模型服务需独立启动。\n" + help);
@@ -32,11 +34,11 @@ if (process.argv.includes("--help")) {
       if (event.type === "tool_start") console.log(`\n[工具] ${event.tool}`);
       if (event.type === "tool_end" && !event.ok) console.log(`[工具失败] ${event.tool}`);
     };
-    const show = (result: RunResult) => {
+    const show = async (result: RunResult) => {
       console.log(`\n[${result.status}] 模型请求 ${result.modelCalls} 次，工具执行 ${result.toolCalls} 次，Token ${result.tokens}`);
       if (result.error) console.log(result.error);
       for (const quote of result.pendingQuotes) {
-        const order = service.getOrder(DEMO_ALICE, quote.orderId);
+        const order = await service.getOrder(DEMO_ALICE, quote.orderId);
         const items = quote.actions.map((action) => {
           const name = order.lines.find((line) => line.id === action.lineId)?.name ?? action.lineId;
           return action.kind === "return" ? `${name} ×${action.quantity} 退货` : `${name} ×${action.quantity} 换为 ${action.targetVariantId}`;
@@ -54,14 +56,14 @@ if (process.argv.includes("--help")) {
       if (line === "/quit") break;
       try {
         if (line === "/help") console.log(help);
-        else if (line === "/quotes") console.log(JSON.stringify(conversation.pendingQuotes(), null, 2));
+        else if (line === "/quotes") console.log(JSON.stringify(await conversation.pendingQuotes(), null, 2));
         else if (line === "/reset") {
           await conversation.close();
           conversation = await create();
-          console.log("已新建对话。之前已创建的售后申请仍然保留；进程退出后内存数据才会重置。");
-        } else if (line.startsWith("/confirm ")) show(await conversation.confirmAndContinue(line.slice(9).trim(), onEvent));
+          console.log(runtime!.persistent ? "已新建对话；数据库保留业务数据，当前有效方案可用 /quotes 查看。" : "已新建对话；本进程内的业务数据仍保留，退出后重置。");
+        } else if (line.startsWith("/confirm ")) await show(await conversation.confirmAndContinue(line.slice(9).trim(), onEvent));
         else if (line.startsWith("/")) console.log("未知命令，输入 /help 查看。");
-        else if (line) show(await conversation.run(line, onEvent));
+        else if (line) await show(await conversation.run(line, onEvent));
       } catch (error) { console.log(error instanceof Error ? error.message : "本轮执行失败"); }
       rl.prompt();
     }
@@ -71,5 +73,6 @@ if (process.argv.includes("--help")) {
   } finally {
     rl?.close();
     await conversation?.close();
+    await runtime?.close();
   }
 }

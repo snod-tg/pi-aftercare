@@ -1,6 +1,5 @@
-import { randomUUID } from "node:crypto";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { AftercareService } from "../domain/aftercare.js";
+import type { AftercareBackend, OperationResult } from "../domain/backend.js";
 import { DomainError } from "../domain/errors.js";
 import type { Actor, Quote } from "../domain/types.js";
 import { createConnectedModel, type ModelConnection } from "./model-connection.js";
@@ -48,7 +47,7 @@ export interface RunResult {
   tokens: number;
   trace: TraceEvent[];
   pendingQuotes: Quote[];
-  operations: ReturnType<AftercareService["getOperation"]>[];
+  operations: OperationResult[];
 }
 
 type StopReason = Exclude<RunResult["status"], "completed" | "model_error">;
@@ -64,18 +63,19 @@ export class AgentConversation {
   private toolCalls = 0;
 
   private constructor(
-    private readonly service: AftercareService,
+    private readonly service: AftercareBackend,
     private readonly actor: Actor,
     private readonly connection: ModelConnection,
     private readonly limits: RunLimits,
   ) {}
 
   static async create(options: {
-    service: AftercareService;
+    service: AftercareBackend;
     actor: Actor;
     connection: ModelConnection;
     limits?: RunLimits;
     fetch?: typeof globalThis.fetch;
+    restorePendingQuotes?: boolean;
   }) {
     const limits = { ...readRunLimits({}), ...options.limits };
     if (Object.values(limits).some((value) => !Number.isSafeInteger(value) || value < 1)) {
@@ -105,6 +105,7 @@ export class AgentConversation {
       },
     });
     conversation.session = session;
+    if (options.restorePendingQuotes) for (const quote of await options.service.listPendingQuotes(options.actor)) conversation.quotes.set(quote.id, quote);
     const originalStream = session.agent.streamFunction;
     session.agent.streamFunction = (selectedModel, context, streamOptions) => {
       if (conversation.reason) throw new Error(conversation.reason);
@@ -137,27 +138,29 @@ export class AgentConversation {
     if (this.busy) throw new Error("上一轮仍在执行，请先等待或取消");
   }
 
-  pendingQuotes() {
-    return [...this.quotes.values()].filter((quote) => {
+  async pendingQuotes() {
+    const pending: Quote[] = [];
+    for (const quote of this.quotes.values()) {
       const receipt = this.receipts.get(quote.id);
-      return !receipt || this.service.getOperation(this.actor, receipt.idempotencyKey).status !== "completed";
-    }).map((quote) => structuredClone(quote));
+      if (!receipt || (await this.service.getOperation(this.actor, receipt.idempotencyKey)).status !== "completed") pending.push(structuredClone(quote));
+    }
+    return pending;
   }
 
   // This method is for a deliberate host/UI action, never registered as a model tool.
-  confirm(quoteId: string): ConfirmationReceipt {
+  async confirm(quoteId: string): Promise<ConfirmationReceipt> {
     this.ensureReady();
     if (!this.quotes.has(quoteId)) throw new DomainError("UNKNOWN_QUOTE", "该方案不属于本会话的当前方案", 404);
     const previous = this.receipts.get(quoteId);
     if (previous) return { ...previous };
-    const confirmation = this.service.confirmQuote(this.actor, quoteId);
-    const receipt = { quoteId, confirmationId: confirmation.id, idempotencyKey: `OP-${randomUUID()}` };
+    const confirmation = await this.service.confirmQuote(this.actor, quoteId);
+    const receipt = { quoteId, confirmationId: confirmation.id, idempotencyKey: confirmation.idempotencyKey };
     this.receipts.set(quoteId, receipt);
     return { ...receipt };
   }
 
   async confirmAndContinue(quoteId: string, onEvent?: (event: TraceEvent) => void) {
-    const receipt = this.confirm(quoteId);
+    const receipt = await this.confirm(quoteId);
     return this.run(`应用已记录用户对下列方案的明确确认：\n${JSON.stringify(receipt)}\n请使用上述标识继续处理，先查询已有操作结果，必要时创建申请。`, onEvent);
   }
 
@@ -220,9 +223,9 @@ export class AgentConversation {
       toolCalls: this.toolCalls,
       tokens: this.session.getSessionStats().tokens.total - tokensBefore,
       trace,
-      pendingQuotes: this.pendingQuotes(),
+      pendingQuotes: await this.pendingQuotes(),
       // Read back actual business results even if inference failed after a write.
-      operations: [...this.receipts.values()].map((receipt) => this.service.getOperation(this.actor, receipt.idempotencyKey)),
+      operations: await Promise.all([...this.receipts.values()].map((receipt) => this.service.getOperation(this.actor, receipt.idempotencyKey))),
     };
   }
 

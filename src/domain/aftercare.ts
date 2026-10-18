@@ -131,7 +131,10 @@ export class AftercareService {
   // Called by the explicit customer confirmation endpoint; never exposed as an Agent tool.
   confirmQuote(actor: Actor, quoteId: string) {
     const quote = this.currentQuote(actor, quoteId);
+    const existing = [...this.state.confirmations.values()].find(item => item.quoteId === quote.id && item.merchantId === actor.merchantId && item.customerId === actor.customerId);
+    if (existing) return structuredClone(existing);
     const confirmation = {
+      idempotencyKey: `OP-${randomUUID()}`,
       id: `CF-${randomUUID()}`,
       ...actor,
       quoteId: quote.id,
@@ -139,6 +142,19 @@ export class AftercareService {
     };
     this.state.confirmations.set(confirmation.id, confirmation);
     return structuredClone(confirmation);
+  }
+
+  listPendingQuotes(actor: Actor) {
+    const latest = new Map<string, Quote>();
+    for (const quote of this.state.quotes.values()) {
+      if (quote.merchantId !== actor.merchantId || quote.customerId !== actor.customerId) continue;
+      const previous = latest.get(quote.orderId);
+      if (!previous || quote.createdAt >= previous.createdAt) latest.set(quote.orderId, quote);
+    }
+    return [...latest.values()].filter(quote => {
+      if ([...this.state.requests.values()].some(request => request.quoteId === quote.id)) return false;
+      try { this.currentQuote(actor, quote.id); return true; } catch { return false; }
+    }).map(quote => structuredClone(quote));
   }
 
   private operationScope(actor: Actor, idempotencyKey: string) {
