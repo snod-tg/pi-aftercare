@@ -5,8 +5,16 @@ description = "Python evaluation and dataset utilities for Pi Aftercare"
 requires-python = ">=3.12,<3.13"
 dependencies = ["httpx>=0.28,<1"]
 
+[project.optional-dependencies]
+tau = [
+    "tau-bench",
+]
+
 [dependency-groups]
 dev = ["pytest>=8,<10"]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+tau-bench = { git = "https://github.com/sierra-research/tau-bench", rev = "59a200c6d575d595120f1cb70fea53cef0632f6b" }

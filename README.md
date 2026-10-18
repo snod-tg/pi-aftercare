@@ -1,6 +1,6 @@
 # Pi Aftercare
 
-面向服饰电商退换货的 Agent 项目。主应用使用 TypeScript 与 Pi SDK，Python 用于后续评测和数据处理。
+面向服饰电商退换货的 Agent 项目。主应用使用 TypeScript 与 Pi SDK，Python 用于评测和数据处理。
 
 ## 当前状态
 
@@ -44,7 +44,7 @@ npm run dev
 ./scripts/npm start
 ```
 
-初始化检查不需要模型 API key，也不发起模型调用。后续启用模型和数据库时再配置 `.env`；示例在 `.env.example`，真实配置不入 Git。
+初始化检查不需要模型 API key，也不发起模型调用。启用模型和数据库时配置 `.env`；示例在 `.env.example`，真实配置不入 Git。
 
 ## 业务演示
 
@@ -102,6 +102,26 @@ node_modules/    Node 依赖（忽略）
 
 当前完成：模拟业务闭环、HTTP API、Pi 工具注册、外部模型 API 客户端、命令行多轮对话、显式确认与运行限制、PostgreSQL 事务与幂等恢复、业务约束及模拟 API 集成测试。
 
-已完成首轮真实模型联调；已增加故障注入和自建场景评测，见 [故障注入与评测](docs/故障注入与评测.md)。后续补充真实模型多场景测评与 τ-bench 适配。内存中的幂等记录在重启后会丢失，当前结果不能视为已实现跨进程或重启恢复。
+已完成首轮真实模型联调；已增加故障注入和自建场景评测，见 [故障注入与评测](docs/故障注入与评测.md)。已完成 [τ-bench 原生环境适配](evals/README.md)及真实模型冒烟验证。后续扩展真实模型场景覆盖和数据库细粒度锁。未配置数据库时，内存数据仍会在重启后丢失。
 
 数据库启动、迁移、并发控制与恢复边界见 [持久化与事务](docs/持久化与事务.md)。
+
+## 快速启动与评测
+
+```bash
+./scripts/npm run db:local -- start
+./scripts/npm run db:init
+./scripts/npm run chat
+```
+
+模型服务另行运行，Agent 仅通过 `.env` 中的 API 地址连接。
+
+```bash
+./scripts/npm run check
+./scripts/npm run test:postgres
+./scripts/npm run eval -- --mode fixture --trials 3
+./scripts/npm run check:tau
+./scripts/npm run tau:smoke
+```
+
+最后一条会调用真实模型；`eval --mode fixture` 不调用模型。τ-bench 可选 Python 依赖使用 `uv sync --extra tau --frozen --cache-dir .cache/uv` 恢复。

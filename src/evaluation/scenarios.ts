@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { AftercareService } from '../domain/aftercare.js';
 import { createDemoState, DEMO_ALICE } from '../domain/seed.js';
 import { AgentConversation, type RunResult } from '../agent/conversation.js';
@@ -69,7 +70,7 @@ export async function runScenario(name: ScenarioName, mode: EvalMode, connection
     const shouldCreate = ['mixed', 'tool_error', 'response_lost'].includes(name);
     const expected = { requests: shouldCreate ? [{ orderId: 'O-1001', actions: [...actions].sort((a, b) => a.lineId.localeCompare(b.lineId)), refundCents: 19900, status: 'awaiting_return', refundStatus: 'not_started' }] : [],
       stock: name === 'stale_inventory' ? 0 : shouldCreate ? 1 : 2, requested: shouldCreate ? [1, 1] : [0, 0] };
-    const stateMatches = JSON.stringify(actual) === JSON.stringify(expected);
+    const stateMatches = isDeepStrictEqual(actual, expected);
     const reachedFault = rules.length === 0 || faults.events.length === rules.length;
     const statusMatches = name === 'model_error' ? runs[0]!.status === 'model_error' : runs.every(run => run.status === 'completed');
     const exercised = ['out_of_stock', 'foreign_order'].includes(name) ? runs.some(run => run.trace.some(e => e.type === 'tool_end' && e.ok === false))

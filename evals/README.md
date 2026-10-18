@@ -1,6 +1,55 @@
-# Python 评测目录
+# 评测与 τ-bench 适配
 
-此目录用于后续的数据整理、业务场景评测和 τ-bench 适配。
-当前只初始化 Python 3.12 虚拟环境与 httpx、pytest；尚未下载 τ-bench、配置模型或运行业务评测。
+## 项目售后场景
 
-从项目根目录运行 `.venv/bin/python --version` 检查环境。
+```bash
+./scripts/npm run eval -- --mode fixture --trials 3
+./scripts/npm run eval -- --mode live --case response_lost --trials 1
+```
+
+fixture 是脚本模型协议回归，不是模型能力分数；live 调用 `.env` 中的真实模型 API。均使用隔离的内存业务状态，不写入用户正在使用的数据库。8 类场景、状态评分、pass^k 和边界见 [故障注入与评测](../docs/故障注入与评测.md)。完整报告在 `.data/evals/`，摘要在 `reports/`。
+
+## 官方 τ-bench 接口
+
+官方仓库固定为 [sierra-research/tau-bench](https://github.com/sierra-research/tau-bench/tree/59a200c6d575d595120f1cb70fea53cef0632f6b)，提交 `59a200c6d575d595120f1cb70fea53cef0632f6b`。这次适配的是原版 τ-bench，不是 τ²-bench。
+
+```bash
+uv sync --extra tau --frozen --cache-dir .cache/uv
+./scripts/npm run check:tau
+./scripts/npm run tau:smoke
+```
+
+Python 依赖在项目 `.venv` 内。tau 为可选依赖，常规业务不需要导入任何 τ-bench 包。
+
+`PiTauAgent` 继承官方 `Agent`，实现 `solve(env, task_index, max_num_steps)`，返回官方 `SolveResult`。Python 负责 `env.reset`、`env.step(Action)`、用户模拟器和官方奖励；Node worker 使用真实 Pi SDK，把环境的 tools_info 注册为工具并将工具调用传给 Python。Agent 文本回复映射到官方 `respond` 动作，由用户模拟器生成下一条消息。
+
+这条适配路径只加载目标环境的工具和 wiki，不加载 Pi Aftercare 的 7 个业务工具、个人扩展或编码工具，也不修改业务 Agent 的确认规则。上游任务的标准答案 actions 不会发送给模型。节点进程只负责 API 消费，不管理推理进程。
+
+动作和模型请求均有上限，模型轮次默认 120 秒，Python 等待默认 150 秒；错误、超时或未终止任务不当作成功。API 费用未知，SolveResult.total_cost 为 null，不把未知费用记成免费。报告保留步骤、轨迹、Token、错误和模型配置。
+
+### 自建冒烟任务
+
+`tau:smoke` 使用原生 Env、GetOrderDetails、ReturnDeliveredOrderItems 和官方最终状态奖励，但数据、任务和脚本用户是自建的，只用于验证适配链路，不能报告为官方任务得分。
+
+2026-10-18，真实本地 9B 完成该冒烟任务：reward=1、status=completed，摘要在 `reports/tau-smoke-2026-10-18.json`。3 项 Python 集成测试还覆盖了模型宣称成功但实际写入失败时官方 reward=0、步数上限和模型 API 失败。测试的模型端使用本机模拟 HTTP，Pi SDK 和上游环境真实执行。
+
+### 官方任务运行入口
+
+```bash
+.venv/bin/python -m evals.run_tau \
+  --domain retail --split dev --task-index 0 \
+  --trials 1 --max-steps 30 --output .data/evals/tau-retail-dev-0.json
+```
+
+默认用户模拟器也消费模型 API：可以单独设置 TAU_USER_BASE_URL、TAU_USER_MODEL、TAU_USER_API_KEY，否则复用 MODEL_*。用户提示使用官方用户模拟器同一份规则；传 `--user human` 可改为人工输入。每个用户模拟器和模型配置都会影响结果，比较时需固定配置。
+
+已验证官方 retail 的 16 个工具、20 个 dev 任务及原始数据可以正常加载；尚未完成官方任务全量测评，不提供排行榜成绩。官方完整 wiki 和工具定义可能超过当前 8192 上下文，需在独立模型服务上另行配置足够上下文，并同步 MODEL_CONTEXT_WINDOW；修改 Agent 元数据不能扩大推理服务窗口。上下文不足会作为失败记录，不删减官方规则后冒充标准成绩。
+
+## 当前验证
+
+- 43 项 TypeScript 离线测试、类型检查、SDK/HTTP 检查、编译通过。
+- 2 项真实 PostgreSQL 集成测试通过。
+- 3 项 Python τ-bench/Pi 接口集成测试通过。
+- 24 次自建 fixture 场景通过；1 次真实 9B τ 接口冒烟通过。
+
+这几类验证分别证明业务边界、事务一致性、接口兼容及单例模型可用性，不能相互替代。

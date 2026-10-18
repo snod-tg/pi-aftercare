@@ -4,6 +4,7 @@ import {
   type CreateAgentSessionOptions,
   type ModelRuntime,
   type ResourceLoader,
+  type ToolDefinition,
   SessionManager,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
@@ -33,6 +34,21 @@ export async function createAftercareSession(options: {
   toolHooks?: ToolHooks;
 }) {
   const tools = createAftercareTools(options.service, options.actor, options.toolHooks);
+  return createIsolatedToolSession({
+    modelRuntime: options.modelRuntime,
+    ...(options.model ? { model: options.model } : {}),
+    tools,
+    systemPrompt,
+  });
+}
+
+export function createIsolatedToolSession(options: {
+  modelRuntime: ModelRuntime;
+  model?: NonNullable<CreateAgentSessionOptions["model"]>;
+  tools: ToolDefinition[];
+  systemPrompt: string;
+}) {
+  const tools = options.tools;
   // Own all resources explicitly instead of loading personal coding tools or extensions.
   const resourceLoader: ResourceLoader = {
     getExtensions: () => ({ extensions: [], errors: [], runtime: createExtensionRuntime() }),
@@ -40,7 +56,7 @@ export async function createAftercareSession(options: {
     getPrompts: () => ({ prompts: [], diagnostics: [] }),
     getThemes: () => ({ themes: [], diagnostics: [] }),
     getAgentsFiles: () => ({ agentsFiles: [] }),
-    getSystemPrompt: () => systemPrompt,
+    getSystemPrompt: () => options.systemPrompt,
     getSystemPromptSource: () => undefined,
     getAppendSystemPrompt: () => [],
     getAppendSystemPromptSources: () => [],
