@@ -37,6 +37,12 @@ customer more cooperative or disclose facts not in the instruction/conversation.
 already resolved, reject further thanks/goodbye and require exactly ###STOP###. Never assume a
 goal is resolved merely because the proposed customer utterance says so: check the prior agent
 reply and all original goals. Accept faithful incomplete conversations that still pursue goals.
+Default to valid unless there is a definite contradiction, invented fact, or invalid termination.
+Customers need not know order IDs/addresses absent from the instruction; asking the service agent
+for a lookup is allowed. They need not reveal all goals in every utterance or at the beginning;
+only a final completion/STOP that drops unfinished goals is invalid. Do not reject a normal next
+request after the previous request was resolved: that is consistent with doing one thing at a time.
+Do not enforce helpfulness, disclosure, or cooperation beyond the original instruction.
 Return JSON only: {"valid": true/false, "reason": "brief correction if invalid"}."""
 
 
@@ -74,7 +80,12 @@ class ApiUser(BaseUserSimulationEnv):
         progress('user_model_request', purpose=purpose, attempt=attempt)
         with httpx.Client(timeout=120, trust_env=False, **({'transport': self.transport} if self.transport is not None else {})) as client:
             response = client.post(base.rstrip('/') + '/chat/completions', headers={'Authorization': f'Bearer {key}'}, json=body)
-            response.raise_for_status()
+            if response.is_error:
+                details = {'code': 'http_error', 'status': response.status_code,
+                           'response_excerpt': response.text[:1000].replace(key, '[redacted]')}
+                self.diagnostics.append({'purpose': purpose, 'attempt': attempt, **details})
+                progress('user_model_http_error', purpose=purpose, attempt=attempt, status=response.status_code)
+                raise UserSimulationError('用户模型HTTP请求失败', details)
             data = response.json()
         choice = data['choices'][0]
         text = choice['message'].get('content')
@@ -94,7 +105,10 @@ class ApiUser(BaseUserSimulationEnv):
         feedback = ''
         last_error = None
         for attempt in range(1, self.max_attempts + 1):
-            prompt = self.messages + ([{'role': 'system', 'content': 'Private repair instruction: ' + feedback}] if feedback else [])
+            prompt = [dict(m) for m in self.messages]
+            if feedback:
+                # Qwen's chat template accepts one system message at the beginning only.
+                prompt[0]['content'] += '\nPrivate repair instruction: ' + feedback
             try:
                 text = self._request(prompt, purpose='customer', attempt=attempt)
                 if self.profile == 'faithful-v1':

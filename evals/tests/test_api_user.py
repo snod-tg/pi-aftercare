@@ -35,6 +35,9 @@ def test_fidelity_rejects_invented_address_and_keeps_private_review_out_of_agent
     reply = user.reset('Use the NYC address already in my other order. PRIVATE_ONLY')
     assert reply == 'Please use my NYC address from my other order.'
     assert len(calls) == 4 and user.tokens == 80
+    assert [m['role'] for m in calls[2]['messages']].count('system') == 1
+    assert calls[2]['messages'][0]['role'] == 'system'
+    assert 'Private repair instruction' in calls[2]['messages'][0]['content']
     assert len(user.messages) == 3
     assert all('Invented Street' not in m['content'] for m in user.messages)
     assert 'PRIVATE_ONLY' in calls[1]['messages'][1]['content']
@@ -71,3 +74,20 @@ def test_invalid_review_fails_closed_and_mixed_stop_is_repaired(monkeypatch):
     user, calls = simulator(monkeypatch, [('Hello', 'stop'), ('[]', 'stop')], attempts='1')
     with pytest.raises(UserSimulationError, match='格式错误'):
         user.reset('Return an item')
+
+
+def test_http_failure_keeps_status_diagnostic_and_redacts_key(monkeypatch):
+    monkeypatch.setenv('MODEL_BASE_URL', 'http://fixture.test/v1')
+    monkeypatch.setenv('MODEL_NAME', 'fixture')
+    monkeypatch.setenv('MODEL_API_KEY', 'test-secret-key')
+    monkeypatch.setenv('TAU_USER_API_KEY', 'test-secret-key')
+    monkeypatch.setenv('TAU_USER_PROFILE', 'faithful-v1')
+    monkeypatch.setenv('TAU_USER_MAX_ATTEMPTS', '1')
+    def handle(request):
+        return httpx.Response(400, json={'error': {'message': 'Only one leading system message: test-secret-key'}})
+    user = ApiUser(transport=httpx.MockTransport(handle))
+    with pytest.raises(UserSimulationError) as caught:
+        user.reset('Return item')
+    assert caught.value.details['status'] == 400
+    assert 'test-secret-key' not in json.dumps(user.diagnostics)
+    assert 'Only one leading system message' in caught.value.details['response_excerpt']
