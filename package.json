@@ -24,10 +24,6 @@
     "db:local": "node --import tsx scripts/postgres-local.ts",
     "db:init": "node --import tsx scripts/db-init.ts",
     "test:postgres": "node --import tsx scripts/test-postgres.ts",
-    "eval": "node --import tsx scripts/eval.ts",
-    "check:tau": ".venv/bin/python -m pytest evals/tests -q",
-    "tau:smoke": ".venv/bin/python -m evals.run_tau --smoke",
-    "tau:full": ".venv/bin/python -m evals.run_tau_full",
     "dev:web": "vite",
     "build:web": "vite build"
   },
@@ -60,5 +56,13 @@
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vite": "8.3.4"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/snod-tg/pi-aftercare.git"
+  },
+  "bugs": {
+    "url": "https://github.com/snod-tg/pi-aftercare/issues"
   }
 }

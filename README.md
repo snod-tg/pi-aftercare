@@ -1,24 +1,57 @@
 # Pi Aftercare
 
-基于 **Pi SDK 的服饰电商售后 Agent**：查询订单、检索适用政策、核对尺码库存、生成报价，经用户在网页确认后创建申请。支持 PostgreSQL 事务、幂等恢复和完整会话持久化。
+基于 [Pi SDK](https://github.com/earendil-works/pi) 的服饰电商售后 Agent。通过自然语言查询订单、检索政策、核对库存并生成退换货方案，用户在网页确认后才创建申请。
 
-技术栈：TypeScript · Pi SDK 1.2.0 · Fastify · React/Vite · PostgreSQL · Python/τ-bench。模型独立部署，应用只消费外部 HTTP API。
+**TypeScript · Pi SDK · React · Fastify · PostgreSQL**
 
-![真实模型生成方案与政策依据](docs/images/live-demo-quote.png)
+模型推理服务独立部署，应用通过兼容 OpenAI Chat Completions 的 HTTP API 调用模型。项目自带模拟订单与商家政策，可用于本地运行和二次开发，不处理真实退款或物流。
 
-这是可演示、可测试的实习项目，使用模拟商家、订单和公开演示身份，不处理真实资金或物流。2026-10-19 已用真实 Qwen3.5-4B 完成网页闭环及刷新、后端重启恢复，见[演示与验收记录](docs/演示与验收记录-2026-10-19.md)。
+## 功能
 
-## 快速启动
+- **多轮售后对话**：支持同一订单的换码与部分退货，展示报价、工具执行记录和实际申请回执。
+- **可追溯政策检索**：按商家、政策版本和生效时间过滤，使用 BM25 检索原文并返回引用与检索时间。
+- **显式确认**：用户必须点击方案卡片确认；普通聊天中的“同意”不能代替授权，模型没有确认工具。
+- **事务与幂等**：提交时重新检查订单、政策及库存版本；稳定操作键避免重复申请，响应丢失后可查询原结果。
+- **会话持久化**：PostgreSQL 保存完整 Pi 上下文、工具结果、确认记录和网页历史，支持刷新及后端重启恢复。
+- **执行约束**：限制模型调用次数、工具调用次数与单轮耗时，支持停止处理；截断生成的工具调用不会执行。
 
-需要 Node.js **24.22.x**、npm **11.x**、PostgreSQL 17，以及已独立运行、支持工具调用的 Chat Completions 兼容模型 API。Python 仅评测需要。
+## 架构
+
+```mermaid
+flowchart LR
+  UI[React 网页] <-->|HTTP / SSE| API[Fastify 会话服务]
+  UI -->|方案确认按钮| API
+  API --> AGENT[Pi Agent]
+  AGENT <-->|HTTP| MODEL[独立模型 API]
+  AGENT --> TOOLS[受限业务工具]
+  TOOLS --> POLICY[政策 BM25 检索]
+  TOOLS --> DOMAIN[售后规则与申请服务]
+  DOMAIN -->|事务 / 版本校验 / 幂等| DB[(PostgreSQL)]
+  API -->|上下文与会话检查点| DB
+```
+
+模型负责决定查询步骤，宿主和业务服务负责客户归属、方案确认、金额计算与提交校验。只注册售后业务工具，不加载终端或文件操作工具。
+
+## 环境要求
+
+- Node.js **24.22.x**、npm **11.x**（版本由 `.node-version` 和 `package.json` 声明）。
+- PostgreSQL **17**，用于业务及会话持久化。
+- 独立运行、支持工具调用的 Chat Completions 兼容模型服务；建议至少 **32K** 上下文。
+
+### 1. 安装
 
 ```bash
-# 项目根目录；已有 .env 时不要覆盖
+git clone https://github.com/snod-tg/pi-aftercare.git
+cd pi-aftercare
 npm ci --ignore-scripts
 cp .env.example .env
 ```
 
-在 `.env` 配置以下项，模型名须与 API 暴露的名称一致：
+已有 `.env` 时请直接编辑，不要覆盖。依赖版本由 `package-lock.json` 锁定。
+
+### 2. 配置模型 API
+
+编辑 `.env`：
 
 ```dotenv
 MODEL_BASE_URL=http://127.0.0.1:8080/v1
@@ -26,116 +59,118 @@ MODEL_NAME=aftercare-4b
 MODEL_API_KEY=local
 MODEL_CONTEXT_WINDOW=32768
 MODEL_MAX_OUTPUT_TOKENS=2048
-AGENT_TIMEOUT_MS=120000
-# 使用自己的连接；不要提交真实密码
-DATABASE_URL=postgresql://aftercare:YOUR_PASSWORD@127.0.0.1:55432/pi_aftercare
 ```
 
-模型服务实际窗口应至少为 32K；修改应用配置不能扩大服务窗口。本次演示使用 Qwen3.5-4B、关闭 thinking、独立 vLLM 服务，见[服务器模型说明](docs/服务器模型部署与测速-2026-10-19.md)。其他兼容模型的质量与耗时需单独验证。
+`MODEL_NAME` 必须匹配服务暴露的模型名称。使用云端或其他模型时，替换地址、名称和密钥。上下文配置不能超过模型服务实际支持的窗口；应用不会下载模型或启动推理引擎。
 
-数据库可连接已有 PostgreSQL。macOS Apple Silicon 也可创建项目专用实例：
+### 3. 配置 PostgreSQL
+
+使用已有数据库时，在 `.env` 中填写连接：
+
+```dotenv
+DATABASE_URL=postgresql://USERNAME:PASSWORD@127.0.0.1:5432/pi_aftercare
+```
+
+也可在 macOS Apple Silicon 上创建项目专用的本地实例：
 
 ```bash
-# 仅首次缺少 PostgreSQL 时安装
+# 尚未安装时执行
 brew install postgresql@17
-# 不要预填示例 DATABASE_URL，脚本自动生成真实连接并写入 .env
+# 自动生成凭据并向 .env 写入 DATABASE_URL
 npm run db:local -- start
 ```
 
-辅助脚本默认程序路径 `/opt/homebrew/opt/postgresql@17/bin`、端口 `55432`、数据目录 `.data/postgres/`，其他路径用 `PG_BIN` 指定。已有 `DATABASE_URL` 会保留；若已填占位连接，先改为有效连接或删去该行再运行辅助脚本。
+辅助脚本默认使用 `/opt/homebrew/opt/postgresql@17/bin`、端口 `55432`，数据保存在 `.data/postgres/`。其他安装路径通过 `PG_BIN` 指定。脚本保留已有 `DATABASE_URL`；若使用自动生成方式，不要先填占位连接。
+
+### 4. 启动网页
 
 ```bash
-# 迁移、保留式初始化、构建并启动网页
 npm run demo:web
 ```
 
-打开 **http://127.0.0.1:3000/**。该入口使用独立 schema `aftercare_demo`，重复启动保留历史和申请。已有 `.runtime/node/` 时可把 `npm` 换成 `./scripts/npm`；新克隆使用 PATH 中的 Node/npm 即可。`.runtime/` 不随仓库分发。
+打开 **http://127.0.0.1:3000/**。启动入口依次执行数据库迁移、保留式初始化、构建和启动，默认使用隔离 schema `aftercare_demo`。重复启动会保留会话、库存及申请，不会重置数据。
 
-## 两分钟演示
-
-1. 默认 Alice，订单 `O-1001`。点击快捷需求，或输入“订单 O-1001，T 恤换 L 码，外套退掉”。
-2. 查看政策原文、版本、检索时间和报价：T 恤换 L，外套退款 ¥199。此时尚未创建申请。
-3. 刷新页面，确认历史与待确认方案恢复。点击 **确认并提交**。
-4. 查看真实后台回执：**等待寄回**、预计退款 ¥199、**退款尚未开始**。
-5. 再刷新，或停止网页服务后用相同命令重启。输入“查询刚才申请的状态，不要重复提交”，应读取同一申请。
-
-“新的对话”不重置已办理的商品。录制新一轮演示时选择新 schema，避免删除旧数据：
+如需一套全新模拟订单，选择新的 schema：
 
 ```bash
 DEMO_DATABASE_SCHEMA=aftercare_demo_take2 npm run demo:web
 ```
 
-![真实模型创建申请](docs/images/live-demo-receipt.png)
+如仅预览内存模式，可不配置 `DATABASE_URL`，运行 `npm run build` 后 `npm start`；该模式重启会丢失数据，不具备持久化能力。
 
-## 架构与执行边界
+## 使用
 
-```mermaid
-flowchart LR
-  U[顾客网页 React] -->|消息 / SSE| H[Fastify 会话服务]
-  U -->|按钮确认| G[宿主确认与授权]
-  H --> P[Pi SDK Agent 循环]
-  P <-->|HTTP / 工具调用| L[独立模型 API]
-  P --> T[7 个受限业务工具]
-  G --> T
-  T --> R[政策 BM25 检索]
-  T --> B[订单 / 报价 / 申请服务]
-  B -->|事务 / 商家行锁 / 幂等| DB[(PostgreSQL)]
-  H -->|Pi 检查点 / 消息 / 回执| DB
-```
+1. 默认演示顾客为 Alice，订单为 `O-1001`。输入“订单 O-1001，T 恤换 L 码，外套退掉”，或点击快捷需求。
+2. 查看政策原文、方案明细和预计退款。报价阶段不会创建申请或扣减换货库存。
+3. 点击方案卡片 **确认并提交**。成功回执表示“等待寄回、退款尚未开始”，不表示退款到账。
+4. 刷新页面或重启服务后继续对话，可查询同一申请的状态。
 
-- **模型决定查询步骤**，宿主负责权限与确认。工具只暴露业务能力，无终端、文件操作或确认工具。
-- **政策可追溯**：按商家、版本和生效时间过滤 BM25 原文；资格与金额由业务规则计算，检索文字不能覆盖权限。
-- **写入可恢复**：确认绑定方案，稳定操作键绑定参数；创建时重新校验订单、库存与政策版本，再在事务内写入。
-- **会话可恢复**：保存完整 Pi 工具上下文和网页历史；中断结果标记未知，先查实际状态，不自动重放旧写操作。
+“新的对话”保留历史和已创建的业务记录。“停止”取消后续模型处理，已提交的操作不会回滚；结果不明时先查询申请状态。
 
-设计取舍与代码入口见[架构与面试讲解](docs/架构与面试讲解.md)。
-
-## 验证与评测
-
-| 验证层 | 2026-10-19 结果 | 范围 |
-|---|---|---|
-| Node 测试与构建检查 | 50 通过；3 个 PG 专用测试在普通检查中跳过 | 业务、工具、HTTP/SSE、类型、SDK 与构建 |
-| 单独真实 PostgreSQL 测试 | 3/3 通过 | 回滚、竞争库存、并发幂等、重启及 SIGKILL 恢复 |
-| Python 评测工具测试 | 37/37 通过 | 原生环境适配、预算、截断保护、执行器 |
-| 自建 fixture 回归 | 8 类 × 3 次，24/24 通过 | 可控故障与协议；不代表模型能力分数 |
-| 真实 4B 网页验收 | 1 个混合退换货案例通过 | 刷新、重启继续查询、只创建 1 笔申请 |
-| 上游 τ-bench test 全量 | 75/165，45.45% | retail 54/115，airline 21/50，单次 trial |
-| 修正后定向回归 | 5/13；error=0，step_limit=2 | 已知失败子集，不能外推新全量分数 |
-
-τ-bench 使用上游环境、工具与最终状态奖励，**不是本项目 7 个工具的业务成功率，也非官方榜单配置复现**。全量中 78 项正常结束但目标未达成、6 项 error、6 项步数到限；修正后仍有 8 个定向失败。详见[验收汇总](docs/演示与验收记录-2026-10-19.md)。
+命令行对话也可复用相同数据库 schema：
 
 ```bash
-npm run check
-npm run test:postgres                 # 真实 PG，隔离 schema
-npm run eval -- --mode fixture --trials 3
-
-# 可选评测环境，普通网页不需要
-uv sync --extra tau --frozen --cache-dir .cache/uv
-npm run check:tau
-# 会消费真实模型资源
-npm run tau:full -- --domain all --split test --trials 1 --concurrency 4 --output .data/evals/my-full-run
+DATABASE_SCHEMA=aftercare_demo npm run chat
+# 终端内使用 /confirm <方案ID> 确认；/quotes 查看待确认方案
 ```
 
-全量脚本、断点续跑与进度见[评测说明](evals/README.md)。历史[全量分析](docs/评测分析-4B-vLLM四任务并行-2026-10-19.md)与[定向回归](docs/修正回归结果-2026-10-19.md)保留原始口径。
+## 配置
 
-## 项目材料与目录
+| 变量 | 默认值 | 用途 |
+|---|---|---|
+| `HOST` / `PORT` | `127.0.0.1` / `3000` | 网页监听地址 |
+| `MODEL_BASE_URL` | 配置必填 | 模型 API 地址，包含 `/v1` |
+| `MODEL_NAME` | 配置必填 | 模型服务中的名称 |
+| `MODEL_API_KEY` | 按服务要求配置 | 仅保存在后端 |
+| `MODEL_CONTEXT_WINDOW` | 示例 32768 | 模型上下文元数据，与服务实际窗口一致 |
+| `MODEL_MAX_OUTPUT_TOKENS` | 示例 2048 | 每次模型输出上限 |
+| `AGENT_MAX_MODEL_CALLS` | `8` | 每条用户消息的模型调用上限 |
+| `AGENT_MAX_TOOL_CALLS` | `24` | 每条用户消息的工具调用上限 |
+| `AGENT_TIMEOUT_MS` | `120000` | 单轮总耗时上限，毫秒 |
+| `DATABASE_URL` | 未配置时使用内存 | PostgreSQL 连接 |
+| `DATABASE_SCHEMA` | `aftercare` | 直接启动或 CLI 使用的 schema |
+| `DEMO_DATABASE_SCHEMA` | `aftercare_demo` | `demo:web` 入口使用的 schema |
 
-- [真实演示、截图与验收记录](docs/演示与验收记录-2026-10-19.md)
-- [架构图、取舍与源码导航](docs/架构与面试讲解.md)
-- [简历项目描述](docs/简历项目描述.md)
-- [网页接口与持久化](docs/网页使用说明.md)、[事务边界](docs/持久化与事务.md)、[故障场景](docs/故障注入与评测.md)
+完整示例见 [.env.example](.env.example)。不要把模型密钥放入 `VITE_*` 变量或提交到 Git。
+
+## 开发与检查
+
+```bash
+# 开发：分别在两个终端启动，网页地址为 http://127.0.0.1:5173
+npm run dev
+npm run dev:web
+
+# 类型、业务测试、Pi SDK、HTTP 检查和构建；无需真实模型
+npm run check
+# 单独验证真实 PostgreSQL；使用临时隔离 schema，需要已配置 DATABASE_URL
+npm run test:postgres
+```
+
+正式构建由 Fastify 同源提供网页；开发时由 Vite 代理 `/api` 请求。测试覆盖确认门禁、身份隔离、库存竞争、事务回滚、幂等重试、超时、取消及会话恢复。普通检查会跳过真实数据库专用测试，需单独运行 `test:postgres`。
+
+## 目录
 
 ```text
-web/                  React 对话、方案确认、政策、回执
-src/agent/            Pi 会话、工具、模型 API、预算与恢复
-src/domain/           售后规则、方案、确认、库存、申请
-src/retrieval/        政策版本过滤与 BM25
-src/http/             认证、会话接口、SSE
-src/storage/          业务事务和会话存储
-migrations/           业务与会话表
-tests/                业务、协议和数据库检查
-evals/                τ-bench 适配、全量运行、分析
-docs/                 截图、验证记录、架构与求职材料
+web/                React 网页
+src/agent/          Pi 会话、工具、模型连接与执行限制
+src/domain/         订单、报价、确认、库存与申请规则
+src/retrieval/      政策检索与有效版本过滤
+src/http/           业务 API、会话、认证与 SSE
+src/storage/        PostgreSQL 业务及会话存储
+migrations/         数据库迁移
+scripts/            启动、初始化与检查入口
+tests/             项目单元和集成测试
+data/policies/      模拟政策原文
 ```
 
-边界：演示令牌不适用于生产；商家级行锁优先保证一致性，未证明生产吞吐；BM25 尚未扩展为向量或混合检索；完整历史暂未压缩；4B 仍有目标理解和动作顺序错误。未配置数据库时使用进程内存，不具备重启恢复能力。密钥保留在后端 `.env`，不要放入 `VITE_*` 或提交 Git。
+## 当前边界
+
+- 网页使用公开的本地演示身份；不具备生产客户登录、真实支付和物流能力。默认仅监听本机。
+- PostgreSQL 使用商家级行锁保证写入一致性，尚未针对大订单量优化锁粒度。
+- 检索使用 BM25，尚未接入向量或混合召回；完整会话历史尚未压缩。
+- 模型可能误解需求或选择错误的操作顺序，宿主校验不能证明所有自然语言目标都被满足。
+- 中断后不自动重放旧工具调用；多实例停止请求需要路由到持有该轮处理的实例。
+
+## License
+
+[MIT](LICENSE)

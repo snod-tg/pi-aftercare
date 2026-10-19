@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ToolFaultInjector } from '../src/evaluation/faults.js';
+import { ToolFaultInjector } from './support/faults.js';
 import { AgentConversation } from '../src/agent/conversation.js';
 import { readModelConnection } from '../src/agent/model-connection.js';
 import { AftercareService } from '../src/domain/aftercare.js';

@@ -14,3 +14,16 @@ __pycache__/
 *.pyc
 *.log
 .DS_Store
+
+# Local reading material, experiments and contributor-specific setup
+/docs/
+/evals/
+/src/evaluation/
+/tests/evaluation.test.ts
+/scripts/eval.ts
+/scripts/tau-worker.ts
+/scripts/activate.sh
+/pyproject.toml
+/uv.lock
+/.python-version
+/AGENTS.md

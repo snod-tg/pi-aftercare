@@ -1,4 +1,3 @@
-import type { ToolFaultInjector } from "../evaluation/faults.js";
 import { SessionManager, type AgentSession, type AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { AftercareBackend, OperationResult } from "../domain/backend.js";
 import { DomainError } from "../domain/errors.js";
@@ -91,7 +90,7 @@ export class AgentConversation {
     limits?: RunLimits;
     fetch?: typeof globalThis.fetch;
     restorePendingQuotes?: boolean;
-    faults?: ToolFaultInjector;
+    faults?: { run<T>(tool: string, operation: () => T | Promise<T>): Promise<T> };
     confirmationMode?: "web" | "cli";
     checkpoint?: ConversationCheckpoint;
     onCheckpoint?: () => Promise<void>;

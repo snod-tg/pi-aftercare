@@ -3,7 +3,7 @@ import { buildApp } from '../../src/app.js';
 import { createBusinessRuntime } from '../../src/storage/runtime.js';
 import { AgentConversation } from '../../src/agent/conversation.js';
 import { readModelConnection } from '../../src/agent/model-connection.js';
-import { messageText, mockApi } from '../../src/evaluation/mock-api.js';
+import { messageText, mockApi } from '../support/mock-api.js';
 const runtime = await createBusinessRuntime({ DATABASE_URL: process.env.TEST_DATABASE_URL!, DATABASE_SCHEMA: process.env.TEST_SCHEMA! });
 const connection = readModelConnection({ MODEL_BASE_URL: 'http://model.test/v1', MODEL_NAME: 'test-model' });
 const app = buildApp({ service: runtime.service, sessionStore: runtime.sessionStore, persistent: true, logger: false,

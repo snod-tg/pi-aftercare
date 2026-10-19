@@ -5,7 +5,7 @@ export type FaultAction =
 export interface FaultRule { tool: string; when: 'before' | 'after'; occurrence?: number; action: FaultAction }
 export interface FaultEvent { time: string; tool: string; when: 'before' | 'after'; occurrence: number; fault: FaultAction['type'] }
 
-// Explicitly injected by tests/evals; never enabled by user chat text or tool arguments.
+// Explicitly injected by tests; never enabled by user chat text or tool arguments.
 export class ToolFaultInjector {
   readonly events: FaultEvent[] = [];
   private readonly counts = new Map<string, number>();
@@ -21,7 +21,7 @@ export class ToolFaultInjector {
       this.events.push({ time: new Date().toISOString(), tool, when, occurrence, fault: rule.action.type });
       if (rule.action.type === 'delay') { const ms = rule.action.ms; await new Promise(resolve => setTimeout(resolve, ms)); }
       else if (rule.action.type === 'effect') await rule.action.apply();
-      else throw new Error(`${rule.action.type === 'response_lost' ? 'RESPONSE_LOST' : 'INJECTED_TOOL_ERROR'}: ${rule.action.message ?? '评测故障'}`);
+      else throw new Error(`${rule.action.type === 'response_lost' ? 'RESPONSE_LOST' : 'INJECTED_TOOL_ERROR'}: ${rule.action.message ?? '测试故障'}`);
     }
   }
   async run<T>(tool: string, operation: () => T | Promise<T>): Promise<T> {
