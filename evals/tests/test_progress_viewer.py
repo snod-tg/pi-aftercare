@@ -17,6 +17,7 @@ def test_progress_page_counts_final_scores_and_keeps_role_endpoints_separate(tmp
 
 
 def test_progress_page_tracks_all_active_tasks_and_removes_finished(tmp_path):
+    (tmp_path / 'manifest.json').write_text(json.dumps({'config': {'selected_task_ids': ['retail:0', 'retail:2'], 'agent_profile': 'careful-v1'}}))
     events = [
         {'event': 'task_start', 'task': 'retail task=0 trial=1'},
         {'event': 'task_start', 'task': 'retail task=1 trial=1'},
@@ -27,5 +28,6 @@ def test_progress_page_tracks_all_active_tasks_and_removes_finished(tmp_path):
     (tmp_path / 'progress.jsonl').write_text('\n'.join(json.dumps(event) for event in events))
     result = snapshot(tmp_path)
     assert result['active_tasks'] == ['retail task=0 trial=1', 'retail task=2 trial=1']
+    assert result['scope'] == '定向回归' and result['experiment_variant'] is True
     assert 'model_request' in result['current']
     assert 'task=1' not in result['current']

@@ -1,0 +1,376 @@
+{
+  "benchmark": "59a200c6d575d595120f1cb70fea53cef0632f6b",
+  "fingerprint": "c65fff587dbb3f81a86030251521844ab802a32794560f7dd59bf240dcf22f9b",
+  "source_run": "tau-reliability-v4-2026-10-19-c4",
+  "config": {
+    "upstream_commit": "59a200c6d575d595120f1cb70fea53cef0632f6b",
+    "domains": [
+      "retail",
+      "airline"
+    ],
+    "split": "test",
+    "trials": 1,
+    "task_start": 0,
+    "task_stop": null,
+    "selected_task_ids": [
+      "airline:0",
+      "airline:3",
+      "airline:33",
+      "airline:40",
+      "airline:6",
+      "airline:8",
+      "retail:0",
+      "retail:105",
+      "retail:106",
+      "retail:14",
+      "retail:31",
+      "retail:93",
+      "retail:98"
+    ],
+    "max_steps": 30,
+    "task_timeout": 900,
+    "model": "aftercare-4b",
+    "model_base_url": "http://127.0.0.1:8080/v1",
+    "user_model": "aftercare-4b",
+    "user_base_url": "http://127.0.0.1:8080/v1",
+    "user_strategy": "api-llm",
+    "context_window": "32768",
+    "model_service_slots": "4",
+    "model_service_context_pool": "131072",
+    "evaluation_concurrency": 4,
+    "model_service_description": "remote RTX4090D / vLLM 0.29.0 / Qwen3.5-4B BF16",
+    "user_max_output_tokens": 512,
+    "agent_profile": "careful-v1",
+    "user_profile": "faithful-v2",
+    "truncation_retries": 1,
+    "user_fact_fallback": "clarify",
+    "user_review_mode": "audit",
+    "user_max_attempts": 2,
+    "max_model_calls": 60,
+    "max_output_tokens": "2048",
+    "turn_timeout_ms": "300000",
+    "worker_timeout_seconds": "330",
+    "code_hash": "6fe7f5598ed0afc5a39587f822694b6af69f9622d835c8c11b58ee7a63576615"
+  },
+  "coverage": {
+    "planned": 13,
+    "saved": 13,
+    "missing": []
+  },
+  "overall": {
+    "runs": 13,
+    "successes": 5,
+    "success_rate": 0.38461538461538464,
+    "statuses": {
+      "completed": 11,
+      "step_limit": 2
+    },
+    "duration_seconds_median": 52.378329,
+    "duration_seconds_p90": 86.80739520000002,
+    "environment_steps_median": 16
+  },
+  "by_domain": {
+    "airline": {
+      "runs": 6,
+      "successes": 2,
+      "success_rate": 0.3333333333333333,
+      "statuses": {
+        "completed": 5,
+        "step_limit": 1
+      },
+      "duration_seconds_median": 68.334506,
+      "duration_seconds_p90": 81.6659005,
+      "environment_steps_median": 16.5
+    },
+    "retail": {
+      "runs": 7,
+      "successes": 3,
+      "success_rate": 0.42857142857142855,
+      "statuses": {
+        "completed": 6,
+        "step_limit": 1
+      },
+      "duration_seconds_median": 45.072073,
+      "duration_seconds_p90": 74.67722380000001,
+      "environment_steps_median": 15
+    }
+  },
+  "outcomes": {
+    "success": 5,
+    "completed_reward_zero": 6,
+    "environment_step_limit": 2
+  },
+  "wall_seconds": 207.66497588157654,
+  "summed_task_seconds": 736.3581780000001,
+  "recorded_agent_tokens": 1976090,
+  "recorded_user_tokens": 420026,
+  "tool_errors": {
+    "observations": 8,
+    "tasks": 7,
+    "successful_tasks": 1,
+    "top_messages": [
+      [
+        "Error: user not found",
+        3
+      ],
+      [
+        "Error: gift card balance is not enough",
+        1
+      ],
+      [
+        "Error: flight HAT271 not available on date 2024-05-10",
+        1
+      ],
+      [
+        "Error: payment method should be either the original payment method or a gift card",
+        1
+      ],
+      [
+        "Error: observed-fact guard: Observed order status pending (item modified) does not permit modify_pending_order_address; reread state and choose an allowed next action.",
+        1
+      ],
+      [
+        "Error: observed-fact guard: Observed order status return requested does not permit return_delivered_order_items; reread state and choose an allowed next action.",
+        1
+      ]
+    ]
+  },
+  "expected_write_groups": {
+    "airline/expected_writes_0": {
+      "runs": 1,
+      "successes": 1,
+      "success_rate": 1.0,
+      "statuses": {
+        "completed": 1
+      },
+      "duration_seconds_median": 27.585105,
+      "duration_seconds_p90": 27.585105,
+      "environment_steps_median": 11
+    },
+    "airline/expected_writes_1": {
+      "runs": 2,
+      "successes": 1,
+      "success_rate": 0.5,
+      "statuses": {
+        "completed": 2
+      },
+      "duration_seconds_median": 62.2951525,
+      "duration_seconds_p90": 70.22861130000001,
+      "environment_steps_median": 14.0
+    },
+    "airline/expected_writes_2plus": {
+      "runs": 3,
+      "successes": 0,
+      "success_rate": 0.0,
+      "statuses": {
+        "completed": 2,
+        "step_limit": 1
+      },
+      "duration_seconds_median": 72.178807,
+      "duration_seconds_p90": 87.3316214,
+      "environment_steps_median": 24
+    },
+    "retail/expected_writes_0": {
+      "runs": 0,
+      "successes": 0,
+      "success_rate": null,
+      "statuses": {},
+      "duration_seconds_median": null,
+      "duration_seconds_p90": null,
+      "environment_steps_median": null
+    },
+    "retail/expected_writes_1": {
+      "runs": 3,
+      "successes": 2,
+      "success_rate": 0.6666666666666666,
+      "statuses": {
+        "completed": 3
+      },
+      "duration_seconds_median": 45.072073,
+      "duration_seconds_p90": 49.4510594,
+      "environment_steps_median": 12
+    },
+    "retail/expected_writes_2plus": {
+      "runs": 4,
+      "successes": 1,
+      "success_rate": 0.25,
+      "statuses": {
+        "completed": 3,
+        "step_limit": 1
+      },
+      "duration_seconds_median": 51.962746499999994,
+      "duration_seconds_p90": 82.5667369,
+      "environment_steps_median": 21.0
+    }
+  },
+  "trials": [
+    {
+      "id": "airline-0000-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 52.378329,
+      "environment_steps": 12,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0003-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 64.490205,
+      "environment_steps": 17,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    },
+    {
+      "id": "airline-0006-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 72.211976,
+      "environment_steps": 16,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0008-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 91.119825,
+      "environment_steps": 24,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    },
+    {
+      "id": "airline-0033-01",
+      "reward": 0.0,
+      "category": "environment_step_limit",
+      "status": "step_limit",
+      "adapter_error": null,
+      "duration_seconds": 72.178807,
+      "environment_steps": 30,
+      "tool_error_observations": 2,
+      "required_write_actions": 4,
+      "offline_replay": {
+        "database_matches_expected": true,
+        "actual_data_hash": "05d8e8de682bc4d89ef00c5286ae723252c1df7246f6bc51cc9441f0ab9be252",
+        "expected_data_hash": "05d8e8de682bc4d89ef00c5286ae723252c1df7246f6bc51cc9441f0ab9be252",
+        "required_text_outputs": [],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "airline-0040-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 27.585105,
+      "environment_steps": 11,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0000-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 45.072073,
+      "environment_steps": 17,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0014-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 26.393474,
+      "environment_steps": 15,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0031-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 64.157873,
+      "environment_steps": 27,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0093-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 50.545806,
+      "environment_steps": 12,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0098-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 39.76762,
+      "environment_steps": 13,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0105-01",
+      "reward": 0.0,
+      "category": "environment_step_limit",
+      "status": "step_limit",
+      "adapter_error": null,
+      "duration_seconds": 90.45625,
+      "environment_steps": 30,
+      "tool_error_observations": 1,
+      "required_write_actions": 4,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "fbd18fd35eceac8cc53aec088f643bf9da5bc4be3cf1c7246fb6289cf675bd6a",
+        "expected_data_hash": "a71249a31816b8f11524fcc5a3849d6a36ed65c8d2ab34489cc1453fb50405d7",
+        "required_text_outputs": [
+          "286422338955"
+        ],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "retail-0106-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 40.000835,
+      "environment_steps": 7,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    }
+  ],
+  "limitations": [
+    "One trial per task in this run; no pass^2/pass^3 estimate.",
+    "Both roles use the same 4B model; simulator drift can change measured success.",
+    "Categories describe recorded outcomes, not exhaustive causal attribution.",
+    "Expected writes are grouped by an explicit mutating-tool allowlist, excluding reads/calculate/think.",
+    "Token usage sums repeated prompt/cache accounting; it is not unique context size or a dollar cost."
+  ]
+}

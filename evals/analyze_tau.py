@@ -98,8 +98,12 @@ def audit_unfinished(record, split):
     env = get_env(env_name=record['domain'], user_strategy='human', user_model='unused',
                   task_split=split, task_index=record['task_index'])
     errors = []
+    blocked = {m.get('tool_call_id') for m in record['messages'] if m.get('role') == 'tool'
+               and m.get('content', '').startswith('Error: observed-fact guard:')}
     for message in record['messages']:
         for call in message.get('tool_calls', []):
+            if call['id'] in blocked:
+                continue
             function = call['function']
             name = function['name']
             if name not in env.tools_map or name in env.terminate_tools:

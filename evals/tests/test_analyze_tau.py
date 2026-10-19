@@ -55,3 +55,18 @@ def test_analysis_rejects_score_corruption_duplicate_and_wrong_fingerprint(tmp_p
     path.write_text(json.dumps(record(0, reward=1) | {'fingerprint': 'wrong'}))
     with pytest.raises(ValueError, match='fingerprint/hash'):
         load_run(tmp_path)
+
+
+def test_offline_audit_does_not_replay_a_write_rejected_before_environment_execution(monkeypatch):
+    from evals.analyze_tau import audit_unfinished
+    from evals.tau_smoke import make_smoke_env
+    import tau_bench.envs
+    monkeypatch.setattr(tau_bench.envs, 'get_env', lambda **kwargs: make_smoke_env())
+    r = record(0, status='step_limit')
+    r['messages'] = [
+        {'role': 'assistant', 'tool_calls': [{'id': 'blocked', 'function': {'name': 'return_delivered_order_items',
+            'arguments': json.dumps({'order_id': '#W1000000', 'item_ids': ['1001'], 'payment_method_id': 'credit_card_100'})}}]},
+        {'role': 'tool', 'tool_call_id': 'blocked', 'content': 'Error: observed-fact guard: read the order first'},
+    ]
+    audit = audit_unfinished(r, 'test')
+    assert audit['database_matches_expected'] is False
