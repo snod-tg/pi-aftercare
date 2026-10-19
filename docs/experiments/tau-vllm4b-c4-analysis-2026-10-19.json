@@ -1,0 +1,2138 @@
+{
+  "benchmark": "59a200c6d575d595120f1cb70fea53cef0632f6b",
+  "fingerprint": "874bbcbe702daea5ddd2f4e634b17bfabc7dd901052155c835dc41cdd7637103",
+  "source_run": "tau-full-2026-10-19-vllm4b-c4-32k",
+  "config": {
+    "upstream_commit": "59a200c6d575d595120f1cb70fea53cef0632f6b",
+    "domains": [
+      "retail",
+      "airline"
+    ],
+    "split": "test",
+    "trials": 1,
+    "task_start": 0,
+    "task_stop": null,
+    "max_steps": 30,
+    "task_timeout": 900,
+    "model": "aftercare-4b",
+    "model_base_url": "http://127.0.0.1:8080/v1",
+    "user_model": "aftercare-4b",
+    "user_base_url": "http://127.0.0.1:8080/v1",
+    "user_strategy": "api-llm",
+    "context_window": "32768",
+    "model_service_slots": "4",
+    "model_service_context_pool": "131072",
+    "evaluation_concurrency": 4,
+    "model_service_description": "remote RTX4090D / vLLM 0.29.0 / Qwen3.5-4B BF16",
+    "user_max_output_tokens": 512,
+    "max_output_tokens": "1024",
+    "turn_timeout_ms": "300000",
+    "worker_timeout_seconds": "330",
+    "code_hash": "d9d5578cdfff95026461e135e5813b92b115ab4652cdc8e95fb4201a214d1c33"
+  },
+  "coverage": {
+    "planned": 165,
+    "saved": 165,
+    "missing": []
+  },
+  "overall": {
+    "runs": 165,
+    "successes": 75,
+    "success_rate": 0.45454545454545453,
+    "statuses": {
+      "completed": 153,
+      "error": 6,
+      "step_limit": 6
+    },
+    "duration_seconds_median": 39.602636,
+    "duration_seconds_p90": 73.2974586,
+    "environment_steps_median": 15
+  },
+  "by_domain": {
+    "airline": {
+      "runs": 50,
+      "successes": 21,
+      "success_rate": 0.42,
+      "statuses": {
+        "completed": 46,
+        "error": 4
+      },
+      "duration_seconds_median": 37.446794,
+      "duration_seconds_p90": 79.15944280000002,
+      "environment_steps_median": 14.0
+    },
+    "retail": {
+      "runs": 115,
+      "successes": 54,
+      "success_rate": 0.46956521739130436,
+      "statuses": {
+        "completed": 107,
+        "step_limit": 6,
+        "error": 2
+      },
+      "duration_seconds_median": 39.982239,
+      "duration_seconds_p90": 64.0859714,
+      "environment_steps_median": 16
+    }
+  },
+  "outcomes": {
+    "completed_reward_zero": 78,
+    "success": 75,
+    "agent_output_truncated": 4,
+    "environment_step_limit": 6,
+    "simulator_incomplete_response": 1,
+    "agent_model_call_limit": 1
+  },
+  "wall_seconds": 1800.3245840072632,
+  "summed_task_seconds": 7133.751219,
+  "recorded_agent_tokens": 20000840,
+  "recorded_user_tokens": 2506882,
+  "tool_errors": {
+    "observations": 128,
+    "tasks": 73,
+    "successful_tasks": 32,
+    "top_messages": [
+      [
+        "Error: user not found",
+        98
+      ],
+      [
+        "Error: non-delivered order cannot be exchanged",
+        6
+      ],
+      [
+        "Error: payment method should be either the original payment method or a gift card",
+        5
+      ],
+      [
+        "Error: order not found",
+        5
+      ],
+      [
+        "Error: not enough seats on flight HAT290",
+        2
+      ],
+      [
+        "Error: non-delivered order cannot be returned",
+        2
+      ],
+      [
+        "Error: non-pending order cannot be modified",
+        2
+      ],
+      [
+        "Error: product not found",
+        2
+      ],
+      [
+        "Error: not enough balance in payment method certificate_3765853",
+        1
+      ],
+      [
+        "Error: payment amount does not add up, total price is 375, but paid 299",
+        1
+      ]
+    ]
+  },
+  "expected_write_groups": {
+    "airline/expected_writes_0": {
+      "runs": 20,
+      "successes": 15,
+      "success_rate": 0.75,
+      "statuses": {
+        "completed": 20
+      },
+      "duration_seconds_median": 27.6151955,
+      "duration_seconds_p90": 75.32734400000004,
+      "environment_steps_median": 11.0
+    },
+    "airline/expected_writes_1": {
+      "runs": 15,
+      "successes": 4,
+      "success_rate": 0.26666666666666666,
+      "statuses": {
+        "completed": 14,
+        "error": 1
+      },
+      "duration_seconds_median": 34.789565,
+      "duration_seconds_p90": 80.265709,
+      "environment_steps_median": 15
+    },
+    "airline/expected_writes_2plus": {
+      "runs": 15,
+      "successes": 2,
+      "success_rate": 0.13333333333333333,
+      "statuses": {
+        "completed": 12,
+        "error": 3
+      },
+      "duration_seconds_median": 56.129272,
+      "duration_seconds_p90": 78.2240618,
+      "environment_steps_median": 16
+    },
+    "retail/expected_writes_0": {
+      "runs": 9,
+      "successes": 8,
+      "success_rate": 0.8888888888888888,
+      "statuses": {
+        "completed": 9
+      },
+      "duration_seconds_median": 22.616935,
+      "duration_seconds_p90": 50.6202,
+      "environment_steps_median": 10
+    },
+    "retail/expected_writes_1": {
+      "runs": 61,
+      "successes": 28,
+      "success_rate": 0.45901639344262296,
+      "statuses": {
+        "completed": 59,
+        "step_limit": 2
+      },
+      "duration_seconds_median": 34.253513,
+      "duration_seconds_p90": 60.320965,
+      "environment_steps_median": 14
+    },
+    "retail/expected_writes_2plus": {
+      "runs": 45,
+      "successes": 18,
+      "success_rate": 0.4,
+      "statuses": {
+        "completed": 39,
+        "step_limit": 4,
+        "error": 2
+      },
+      "duration_seconds_median": 48.789012,
+      "duration_seconds_p90": 73.08381340000001,
+      "environment_steps_median": 20
+    }
+  },
+  "trials": [
+    {
+      "id": "airline-0000-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 56.831955,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0001-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 32.865166,
+      "environment_steps": 11,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0002-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 53.934313,
+      "environment_steps": 18,
+      "tool_error_observations": 0,
+      "required_write_actions": 5
+    },
+    {
+      "id": "airline-0003-01",
+      "reward": 0.0,
+      "category": "agent_output_truncated",
+      "status": "error",
+      "adapter_error": "模型输出终止：length",
+      "duration_seconds": 35.179755,
+      "environment_steps": 12,
+      "tool_error_observations": 0,
+      "required_write_actions": 2,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "4587e6b48ad2b2c4f3e1fecb40aabec7bb2286513273b8f8cec3f5865222f290",
+        "expected_data_hash": "b7d5970b354019f52ef64393fd4e345532045173f6d60e2efd1a39c2642362b2",
+        "required_text_outputs": [],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "airline-0004-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 45.005069,
+      "environment_steps": 26,
+      "tool_error_observations": 0,
+      "required_write_actions": 3
+    },
+    {
+      "id": "airline-0005-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 37.969667,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 3
+    },
+    {
+      "id": "airline-0006-01",
+      "reward": 0.0,
+      "category": "agent_output_truncated",
+      "status": "error",
+      "adapter_error": "模型输出终止：length",
+      "duration_seconds": 30.555078,
+      "environment_steps": 7,
+      "tool_error_observations": 0,
+      "required_write_actions": 1,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "4587e6b48ad2b2c4f3e1fecb40aabec7bb2286513273b8f8cec3f5865222f290",
+        "expected_data_hash": "8a4a0713cf1e4c10fb11c801f60e733c6f39388e045c663418d874f9680bfe24",
+        "required_text_outputs": [],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "airline-0007-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 25.529761,
+      "environment_steps": 11,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0008-01",
+      "reward": 0.0,
+      "category": "agent_output_truncated",
+      "status": "error",
+      "adapter_error": "模型输出终止：length",
+      "duration_seconds": 57.533385,
+      "environment_steps": 19,
+      "tool_error_observations": 1,
+      "required_write_actions": 2,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "f65c725819e8e120338a9eeb93676df9e6157e88a29e05af17612b802e5d9429",
+        "expected_data_hash": "f9bcf16efd53be406b4bb0f0dcfc77a5ba8032c84b9557ab4f3099d680f56a8d",
+        "required_text_outputs": [
+          "327",
+          "1000",
+          "1786"
+        ],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "airline-0009-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 78.369121,
+      "environment_steps": 16,
+      "tool_error_observations": 1,
+      "required_write_actions": 4
+    },
+    {
+      "id": "airline-0010-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 92.364842,
+      "environment_steps": 28,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "airline-0011-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 30.208291,
+      "environment_steps": 8,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0012-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 19.845296,
+      "environment_steps": 7,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0013-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 120.497242,
+      "environment_steps": 27,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0014-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 44.022412,
+      "environment_steps": 17,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0015-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 40.162353,
+      "environment_steps": 12,
+      "tool_error_observations": 2,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0016-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 37.357417,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0017-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 49.50664,
+      "environment_steps": 14,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0018-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 17.330295,
+      "environment_steps": 4,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0019-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 56.129272,
+      "environment_steps": 13,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "airline-0020-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 71.255764,
+      "environment_steps": 28,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0021-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 72.288504,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0022-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 65.845179,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "airline-0023-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 78.006473,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "airline-0024-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 35.614783,
+      "environment_steps": 10,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0025-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 17.211116,
+      "environment_steps": 6,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0026-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 29.532032,
+      "environment_steps": 10,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "airline-0027-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 25.481969,
+      "environment_steps": 7,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0028-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 46.710063,
+      "environment_steps": 16,
+      "tool_error_observations": 0,
+      "required_write_actions": 3
+    },
+    {
+      "id": "airline-0029-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 28.406957,
+      "environment_steps": 14,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0030-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 73.970095,
+      "environment_steps": 26,
+      "tool_error_observations": 2,
+      "required_write_actions": 2
+    },
+    {
+      "id": "airline-0031-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 34.789565,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0032-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 50.705102,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0033-01",
+      "reward": 0.0,
+      "category": "agent_output_truncated",
+      "status": "error",
+      "adapter_error": "模型输出终止：length",
+      "duration_seconds": 47.541113,
+      "environment_steps": 17,
+      "tool_error_observations": 0,
+      "required_write_actions": 4,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "4587e6b48ad2b2c4f3e1fecb40aabec7bb2286513273b8f8cec3f5865222f290",
+        "expected_data_hash": "05d8e8de682bc4d89ef00c5286ae723252c1df7246f6bc51cc9441f0ab9be252",
+        "required_text_outputs": [],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "airline-0034-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 57.865429,
+      "environment_steps": 20,
+      "tool_error_observations": 0,
+      "required_write_actions": 3
+    },
+    {
+      "id": "airline-0035-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 28.870648,
+      "environment_steps": 8,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0036-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 102.676904,
+      "environment_steps": 25,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0037-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 21.277806,
+      "environment_steps": 7,
+      "tool_error_observations": 2,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0038-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 8.88114,
+      "environment_steps": 3,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0039-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 37.536171,
+      "environment_steps": 13,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0040-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 26.823434,
+      "environment_steps": 14,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0041-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 14.625516,
+      "environment_steps": 7,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0042-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 21.153618,
+      "environment_steps": 7,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0043-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 10.191322,
+      "environment_steps": 6,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0044-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 24.191105,
+      "environment_steps": 12,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0045-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 86.272339,
+      "environment_steps": 27,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0046-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 94.346102,
+      "environment_steps": 28,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "airline-0047-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 25.571548,
+      "environment_steps": 12,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0048-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 36.288932,
+      "environment_steps": 9,
+      "tool_error_observations": 1,
+      "required_write_actions": 0
+    },
+    {
+      "id": "airline-0049-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 11.808614,
+      "environment_steps": 4,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0000-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 64.429695,
+      "environment_steps": 18,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0001-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 34.853996,
+      "environment_steps": 13,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0002-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 43.266747,
+      "environment_steps": 19,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0003-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 32.91412,
+      "environment_steps": 11,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0004-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 47.356054,
+      "environment_steps": 22,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0005-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 47.060076,
+      "environment_steps": 15,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0006-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 27.863875,
+      "environment_steps": 15,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0007-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 37.301403,
+      "environment_steps": 12,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0008-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 43.78537,
+      "environment_steps": 20,
+      "tool_error_observations": 3,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0009-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 48.725131,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0010-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 21.650856,
+      "environment_steps": 10,
+      "tool_error_observations": 1,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0011-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 24.063502,
+      "environment_steps": 12,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0012-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 15.502605,
+      "environment_steps": 6,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0013-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 31.785759,
+      "environment_steps": 17,
+      "tool_error_observations": 2,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0014-01",
+      "reward": 0.0,
+      "category": "environment_step_limit",
+      "status": "step_limit",
+      "adapter_error": null,
+      "duration_seconds": 39.982239,
+      "environment_steps": 30,
+      "tool_error_observations": 2,
+      "required_write_actions": 2,
+      "offline_replay": {
+        "database_matches_expected": true,
+        "actual_data_hash": "636000d5cd4aadfb249e53bf421e8589c2bfcd7c315f8c5cacdac97b9f9d6653",
+        "expected_data_hash": "636000d5cd4aadfb249e53bf421e8589c2bfcd7c315f8c5cacdac97b9f9d6653",
+        "required_text_outputs": [],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "retail-0015-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 30.158588,
+      "environment_steps": 13,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0016-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 38.66139,
+      "environment_steps": 18,
+      "tool_error_observations": 0,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0017-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 15.365751,
+      "environment_steps": 10,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0018-01",
+      "reward": 0.0,
+      "category": "environment_step_limit",
+      "status": "step_limit",
+      "adapter_error": null,
+      "duration_seconds": 69.353969,
+      "environment_steps": 30,
+      "tool_error_observations": 1,
+      "required_write_actions": 1,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "5a4b2cb59f4d12dea7e4adff24a7f8fada510ead49372ea4a729a82bbb5f49b5",
+        "expected_data_hash": "80084410b325f6d376c95f8dd8d464080cbc9f396208ddc5ea0252d65ae3277f",
+        "required_text_outputs": [],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "retail-0019-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 39.602636,
+      "environment_steps": 13,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0020-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 87.943941,
+      "environment_steps": 27,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0021-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 25.579046,
+      "environment_steps": 9,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0022-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 27.878385,
+      "environment_steps": 16,
+      "tool_error_observations": 1,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0023-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 48.789012,
+      "environment_steps": 23,
+      "tool_error_observations": 1,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0024-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 28.440738,
+      "environment_steps": 15,
+      "tool_error_observations": 1,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0025-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 4.587755,
+      "environment_steps": 1,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0026-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 27.973037,
+      "environment_steps": 13,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0027-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 59.810809,
+      "environment_steps": 20,
+      "tool_error_observations": 3,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0028-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 52.784129,
+      "environment_steps": 25,
+      "tool_error_observations": 7,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0029-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 56.430083,
+      "environment_steps": 28,
+      "tool_error_observations": 6,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0030-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 48.902428,
+      "environment_steps": 23,
+      "tool_error_observations": 0,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0031-01",
+      "reward": 0.0,
+      "category": "simulator_incomplete_response",
+      "status": "error",
+      "adapter_error": "用户模拟器没有生成完整回复，请检查思考模式及输出上限",
+      "duration_seconds": 30.027559,
+      "environment_steps": 16,
+      "tool_error_observations": 0,
+      "required_write_actions": 2,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "d48d6ab7c4678f80d5f356b66a108bc983b876e3d71830a3d60927360cf76b20",
+        "expected_data_hash": "97152dca63f1872a12b93f5f4ca3c3bd13004e05f73125188c5f4cce0193898d",
+        "required_text_outputs": [
+          "746342064230"
+        ],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "retail-0032-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 14.422912,
+      "environment_steps": 11,
+      "tool_error_observations": 1,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0033-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 36.725369,
+      "environment_steps": 19,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0034-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 51.519062,
+      "environment_steps": 20,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0035-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 59.466247,
+      "environment_steps": 26,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0036-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 41.552333,
+      "environment_steps": 16,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0037-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 27.01186,
+      "environment_steps": 13,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0038-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 15.2106,
+      "environment_steps": 8,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0039-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 87.682852,
+      "environment_steps": 27,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0040-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 21.968476,
+      "environment_steps": 12,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0041-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 43.076208,
+      "environment_steps": 16,
+      "tool_error_observations": 2,
+      "required_write_actions": 4
+    },
+    {
+      "id": "retail-0042-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 52.891285,
+      "environment_steps": 19,
+      "tool_error_observations": 1,
+      "required_write_actions": 4
+    },
+    {
+      "id": "retail-0043-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 80.424286,
+      "environment_steps": 22,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0044-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 18.105661,
+      "environment_steps": 8,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0045-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 34.967685,
+      "environment_steps": 12,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0046-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 49.790171,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0047-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 31.720201,
+      "environment_steps": 12,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0048-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 32.549612,
+      "environment_steps": 17,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0049-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 26.799509,
+      "environment_steps": 14,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0050-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 7.749465,
+      "environment_steps": 3,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0051-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 32.591863,
+      "environment_steps": 13,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0052-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 49.546305,
+      "environment_steps": 24,
+      "tool_error_observations": 10,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0053-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 29.494228,
+      "environment_steps": 15,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0054-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 87.743104,
+      "environment_steps": 28,
+      "tool_error_observations": 2,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0055-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 75.602529,
+      "environment_steps": 27,
+      "tool_error_observations": 2,
+      "required_write_actions": 4
+    },
+    {
+      "id": "retail-0056-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 20.484747,
+      "environment_steps": 13,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0057-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 22.616935,
+      "environment_steps": 9,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0058-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 55.390361,
+      "environment_steps": 21,
+      "tool_error_observations": 3,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0059-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 30.310578,
+      "environment_steps": 16,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0060-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 26.706315,
+      "environment_steps": 8,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0061-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 48.215092,
+      "environment_steps": 14,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0062-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 51.78124,
+      "environment_steps": 24,
+      "tool_error_observations": 2,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0063-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 46.124254,
+      "environment_steps": 19,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0064-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 31.491089,
+      "environment_steps": 15,
+      "tool_error_observations": 2,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0065-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 50.32994,
+      "environment_steps": 14,
+      "tool_error_observations": 3,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0066-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 46.113193,
+      "environment_steps": 24,
+      "tool_error_observations": 3,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0067-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 39.791761,
+      "environment_steps": 17,
+      "tool_error_observations": 2,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0068-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 19.062936,
+      "environment_steps": 9,
+      "tool_error_observations": 0,
+      "required_write_actions": 0
+    },
+    {
+      "id": "retail-0069-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 60.320965,
+      "environment_steps": 18,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0070-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 34.253513,
+      "environment_steps": 18,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0071-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 51.950779,
+      "environment_steps": 23,
+      "tool_error_observations": 3,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0072-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 47.048921,
+      "environment_steps": 19,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0073-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 18.952589,
+      "environment_steps": 12,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0074-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 45.623707,
+      "environment_steps": 16,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0075-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 25.945593,
+      "environment_steps": 12,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0076-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 48.217338,
+      "environment_steps": 25,
+      "tool_error_observations": 2,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0077-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 13.965424,
+      "environment_steps": 8,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0078-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 40.232952,
+      "environment_steps": 19,
+      "tool_error_observations": 1,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0079-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 52.152431,
+      "environment_steps": 17,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0080-01",
+      "reward": 0.0,
+      "category": "environment_step_limit",
+      "status": "step_limit",
+      "adapter_error": null,
+      "duration_seconds": 160.292029,
+      "environment_steps": 30,
+      "tool_error_observations": 0,
+      "required_write_actions": 1,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "5a4b2cb59f4d12dea7e4adff24a7f8fada510ead49372ea4a729a82bbb5f49b5",
+        "expected_data_hash": "bb4a916d7a9c528bfc958ae7722f4e80ad2b79c633dbb89561bd9dbefd32e4cc",
+        "required_text_outputs": [],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "retail-0081-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 26.265138,
+      "environment_steps": 15,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0082-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 45.091339,
+      "environment_steps": 19,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0083-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 58.928285,
+      "environment_steps": 24,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0084-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 32.091471,
+      "environment_steps": 18,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0085-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 28.654749,
+      "environment_steps": 15,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0086-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 51.189458,
+      "environment_steps": 25,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0087-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 43.578052,
+      "environment_steps": 23,
+      "tool_error_observations": 0,
+      "required_write_actions": 4
+    },
+    {
+      "id": "retail-0088-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 31.997511,
+      "environment_steps": 14,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0089-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 8.73456,
+      "environment_steps": 5,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0090-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 21.148847,
+      "environment_steps": 13,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0091-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 58.424127,
+      "environment_steps": 20,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0092-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 58.816155,
+      "environment_steps": 22,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0093-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 23.340814,
+      "environment_steps": 11,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0094-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 35.408055,
+      "environment_steps": 14,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0095-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 21.334728,
+      "environment_steps": 10,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0096-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 37.133504,
+      "environment_steps": 14,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0097-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 36.349273,
+      "environment_steps": 18,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0098-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 46.978009,
+      "environment_steps": 16,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0099-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 48.740355,
+      "environment_steps": 13,
+      "tool_error_observations": 0,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0100-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 63.570386,
+      "environment_steps": 21,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0101-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 56.769928,
+      "environment_steps": 19,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0102-01",
+      "reward": 0.0,
+      "category": "environment_step_limit",
+      "status": "step_limit",
+      "adapter_error": null,
+      "duration_seconds": 54.349494,
+      "environment_steps": 30,
+      "tool_error_observations": 1,
+      "required_write_actions": 3,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "02986566d27a3f8367079713fdbbb41a67b302b07f8b8fd647d1ee464f9ceade",
+        "expected_data_hash": "0f8e99fd127d1fa9a347f587c6f21618875a10a5134b005a34b3867bf5cfeb75",
+        "required_text_outputs": [],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "retail-0103-01",
+      "reward": 0.0,
+      "category": "environment_step_limit",
+      "status": "step_limit",
+      "adapter_error": null,
+      "duration_seconds": 58.534834,
+      "environment_steps": 30,
+      "tool_error_observations": 1,
+      "required_write_actions": 3,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "44f7f1a3c66fcace3600306a727fa9f63aadc83b82800e0b37f8d29b87b9704e",
+        "expected_data_hash": "c3b82b2d98523c9328cfab49911f5319a90dd59c9b272811e81d91961fea6544",
+        "required_text_outputs": [],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "retail-0104-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 76.472523,
+      "environment_steps": 27,
+      "tool_error_observations": 0,
+      "required_write_actions": 4
+    },
+    {
+      "id": "retail-0105-01",
+      "reward": 0.0,
+      "category": "agent_model_call_limit",
+      "status": "error",
+      "adapter_error": "模型请求次数已达上限",
+      "duration_seconds": 78.951141,
+      "environment_steps": 29,
+      "tool_error_observations": 0,
+      "required_write_actions": 4,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "255afc5e44830b88d183fc4f635b688308362b119752afc97defd6830c1f5007",
+        "expected_data_hash": "a71249a31816b8f11524fcc5a3849d6a36ed65c8d2ab34489cc1453fb50405d7",
+        "required_text_outputs": [
+          "286422338955"
+        ],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "retail-0106-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 35.046204,
+      "environment_steps": 11,
+      "tool_error_observations": 0,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0107-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 8.499349,
+      "environment_steps": 5,
+      "tool_error_observations": 1,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0108-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 59.595142,
+      "environment_steps": 16,
+      "tool_error_observations": 0,
+      "required_write_actions": 2
+    },
+    {
+      "id": "retail-0109-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 20.734631,
+      "environment_steps": 14,
+      "tool_error_observations": 2,
+      "required_write_actions": 1
+    },
+    {
+      "id": "retail-0110-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 69.30574,
+      "environment_steps": 23,
+      "tool_error_observations": 1,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0111-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 58.659715,
+      "environment_steps": 16,
+      "tool_error_observations": 0,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0112-01",
+      "reward": 0.0,
+      "category": "environment_step_limit",
+      "status": "step_limit",
+      "adapter_error": null,
+      "duration_seconds": 94.399502,
+      "environment_steps": 30,
+      "tool_error_observations": 0,
+      "required_write_actions": 3,
+      "offline_replay": {
+        "database_matches_expected": false,
+        "actual_data_hash": "49dc51dfa4804afceae9f2b5da24b25b21d27c66b0fe2cbfb02897a32f4fea3b",
+        "expected_data_hash": "d33035afcfd03d150f51b1f4756ccd64a7789d2615d5f806f7c7bc1016e34080",
+        "required_text_outputs": [],
+        "replay_exceptions": [],
+        "notice": "Offline diagnostic only; no terminal event, no official reward recalculation. Partial/unrecorded output is unavailable."
+      }
+    },
+    {
+      "id": "retail-0113-01",
+      "reward": 0.0,
+      "category": "completed_reward_zero",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 62.998875,
+      "environment_steps": 28,
+      "tool_error_observations": 0,
+      "required_write_actions": 3
+    },
+    {
+      "id": "retail-0114-01",
+      "reward": 1.0,
+      "category": "success",
+      "status": "completed",
+      "adapter_error": null,
+      "duration_seconds": 25.905463,
+      "environment_steps": 15,
+      "tool_error_observations": 1,
+      "required_write_actions": 2
+    }
+  ],
+  "limitations": [
+    "One trial per task in this run; no pass^2/pass^3 estimate.",
+    "Both roles use the same 4B model; simulator drift can change measured success.",
+    "Categories describe recorded outcomes, not exhaustive causal attribution.",
+    "Expected writes are grouped by an explicit mutating-tool allowlist, excluding reads/calculate/think.",
+    "Token usage sums repeated prompt/cache accounting; it is not unique context size or a dollar cost."
+  ]
+}
