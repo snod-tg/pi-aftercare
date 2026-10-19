@@ -1,129 +1,141 @@
 # Pi Aftercare
 
-面向服饰电商退换货的 Agent 项目。主应用使用 TypeScript 与 Pi SDK，Python 用于评测和数据处理。
+基于 **Pi SDK 的服饰电商售后 Agent**：查询订单、检索适用政策、核对尺码库存、生成报价，经用户在网页确认后创建申请。支持 PostgreSQL 事务、幂等恢复和完整会话持久化。
 
-## 当前状态
+技术栈：TypeScript · Pi SDK 1.2.0 · Fastify · React/Vite · PostgreSQL · Python/τ-bench。模型独立部署，应用只消费外部 HTTP API。
 
-完成项目骨架、独立运行环境和依赖配置，并实现退换货业务的内存模拟：订单归属、同款尺码换货、部分退货、方案确认、库存版本校验、申请创建和幂等重试。当前不提供真实退换货或资金操作。配置 DATABASE_URL 时使用 PostgreSQL 持久化，否则使用内存演示。
+![真实模型生成方案与政策依据](docs/images/live-demo-quote.png)
 
-React 售后网页、HTTP 接口、7 个 Pi 业务工具、外部模型 API 连接和命令行多轮对话已实现。网页支持流式对话、政策依据、方案按钮确认、工具记录和申请回执；配置 PostgreSQL 后保存完整 Pi 上下文与历史对话，支持后端重启恢复，见 [网页使用说明](docs/网页使用说明.md)。`npm run demo` 离线演示确定性业务流程，`npm run chat` 通过配置的外部 API 驱动 Agent。已通过本机外部模型 API 完成一次真实模型售后闭环联调；自动化集成测试使用模拟 HTTP 响应和实际 Pi SDK 执行循环。售后政策同时提供结构化规则和按版本、生效时间过滤的 BM25 原文检索，见 [政策检索](docs/政策检索.md)。
+这是可演示、可测试的实习项目，使用模拟商家、订单和公开演示身份，不处理真实资金或物流。2026-10-19 已用真实 Qwen3.5-4B 完成网页闭环及刷新、后端重启恢复，见[演示与验收记录](docs/演示与验收记录-2026-10-19.md)。
 
-2026-10-18 初始化验证通过：TypeScript 类型检查、Pi SDK 离线会话创建、健康接口检查、编译、编译产物启动及本机 HTTP 请求、Python 虚拟环境和依赖导入。验证完成后已停止临时服务。Git 仓库已初始化；按照项目协作要求，每完成一组修改并验证后创建提交。
+## 快速启动
 
-## 环境
-
-- Node.js 24.22.0，项目本地目录 `.runtime/node/`，下载自 Node.js 官网并核对 SHA-256。
-- npm 11.19.1，随项目本地 Node.js 分发。
-- Pi SDK `@earendil-works/pi-coding-agent` 固定为 1.2.0，与本地 Pi 源码版本一致，使用 npm 官方发布包。
-- Node 依赖保存在本项目 `node_modules/`，精确版本由 `package-lock.json` 锁定；通过 `overrides` 将 Pi 系列间接依赖统一为 1.2.0。
-- Python 3.12.14，虚拟环境 `.venv/`；依赖由 `uv.lock` 锁定。
-- npm/uv 缓存放在本项目 `.cache/`，不修改全局 Node/Pi 安装。
-
-Node.js 不使用 Python 的虚拟环境机制；此项目用本地运行时和 `node_modules` 隔离 Node 环境，用 `.venv` 隔离 Python 包。Python 解释器由已有 3.12 运行时提供。
-
-## 使用
-
-在项目根目录：
+需要 Node.js **24.22.x**、npm **11.x**、PostgreSQL 17，以及已独立运行、支持工具调用的 Chat Completions 兼容模型 API。Python 仅评测需要。
 
 ```bash
-source scripts/activate.sh
-node --version
-python --version
+# 项目根目录；已有 .env 时不要覆盖
+npm ci --ignore-scripts
+cp .env.example .env
+```
+
+在 `.env` 配置以下项，模型名须与 API 暴露的名称一致：
+
+```dotenv
+MODEL_BASE_URL=http://127.0.0.1:8080/v1
+MODEL_NAME=aftercare-4b
+MODEL_API_KEY=local
+MODEL_CONTEXT_WINDOW=32768
+MODEL_MAX_OUTPUT_TOKENS=2048
+AGENT_TIMEOUT_MS=120000
+# 使用自己的连接；不要提交真实密码
+DATABASE_URL=postgresql://aftercare:YOUR_PASSWORD@127.0.0.1:55432/pi_aftercare
+```
+
+模型服务实际窗口应至少为 32K；修改应用配置不能扩大服务窗口。本次演示使用 Qwen3.5-4B、关闭 thinking、独立 vLLM 服务，见[服务器模型说明](docs/服务器模型部署与测速-2026-10-19.md)。其他兼容模型的质量与耗时需单独验证。
+
+数据库可连接已有 PostgreSQL。macOS Apple Silicon 也可创建项目专用实例：
+
+```bash
+# 仅首次缺少 PostgreSQL 时安装
+brew install postgresql@17
+# 不要预填示例 DATABASE_URL，脚本自动生成真实连接并写入 .env
+npm run db:local -- start
+```
+
+辅助脚本默认程序路径 `/opt/homebrew/opt/postgresql@17/bin`、端口 `55432`、数据目录 `.data/postgres/`，其他路径用 `PG_BIN` 指定。已有 `DATABASE_URL` 会保留；若已填占位连接，先改为有效连接或删去该行再运行辅助脚本。
+
+```bash
+# 迁移、保留式初始化、构建并启动网页
+npm run demo:web
+```
+
+打开 **http://127.0.0.1:3000/**。该入口使用独立 schema `aftercare_demo`，重复启动保留历史和申请。已有 `.runtime/node/` 时可把 `npm` 换成 `./scripts/npm`；新克隆使用 PATH 中的 Node/npm 即可。`.runtime/` 不随仓库分发。
+
+## 两分钟演示
+
+1. 默认 Alice，订单 `O-1001`。点击快捷需求，或输入“订单 O-1001，T 恤换 L 码，外套退掉”。
+2. 查看政策原文、版本、检索时间和报价：T 恤换 L，外套退款 ¥199。此时尚未创建申请。
+3. 刷新页面，确认历史与待确认方案恢复。点击 **确认并提交**。
+4. 查看真实后台回执：**等待寄回**、预计退款 ¥199、**退款尚未开始**。
+5. 再刷新，或停止网页服务后用相同命令重启。输入“查询刚才申请的状态，不要重复提交”，应读取同一申请。
+
+“新的对话”不重置已办理的商品。录制新一轮演示时选择新 schema，避免删除旧数据：
+
+```bash
+DEMO_DATABASE_SCHEMA=aftercare_demo_take2 npm run demo:web
+```
+
+![真实模型创建申请](docs/images/live-demo-receipt.png)
+
+## 架构与执行边界
+
+```mermaid
+flowchart LR
+  U[顾客网页 React] -->|消息 / SSE| H[Fastify 会话服务]
+  U -->|按钮确认| G[宿主确认与授权]
+  H --> P[Pi SDK Agent 循环]
+  P <-->|HTTP / 工具调用| L[独立模型 API]
+  P --> T[7 个受限业务工具]
+  G --> T
+  T --> R[政策 BM25 检索]
+  T --> B[订单 / 报价 / 申请服务]
+  B -->|事务 / 商家行锁 / 幂等| DB[(PostgreSQL)]
+  H -->|Pi 检查点 / 消息 / 回执| DB
+```
+
+- **模型决定查询步骤**，宿主负责权限与确认。工具只暴露业务能力，无终端、文件操作或确认工具。
+- **政策可追溯**：按商家、版本和生效时间过滤 BM25 原文；资格与金额由业务规则计算，检索文字不能覆盖权限。
+- **写入可恢复**：确认绑定方案，稳定操作键绑定参数；创建时重新校验订单、库存与政策版本，再在事务内写入。
+- **会话可恢复**：保存完整 Pi 工具上下文和网页历史；中断结果标记未知，先查实际状态，不自动重放旧写操作。
+
+设计取舍与代码入口见[架构与面试讲解](docs/架构与面试讲解.md)。
+
+## 验证与评测
+
+| 验证层 | 2026-10-19 结果 | 范围 |
+|---|---|---|
+| Node 测试与构建检查 | 50 通过；3 个 PG 专用测试在普通检查中跳过 | 业务、工具、HTTP/SSE、类型、SDK 与构建 |
+| 单独真实 PostgreSQL 测试 | 3/3 通过 | 回滚、竞争库存、并发幂等、重启及 SIGKILL 恢复 |
+| Python 评测工具测试 | 37/37 通过 | 原生环境适配、预算、截断保护、执行器 |
+| 自建 fixture 回归 | 8 类 × 3 次，24/24 通过 | 可控故障与协议；不代表模型能力分数 |
+| 真实 4B 网页验收 | 1 个混合退换货案例通过 | 刷新、重启继续查询、只创建 1 笔申请 |
+| 上游 τ-bench test 全量 | 75/165，45.45% | retail 54/115，airline 21/50，单次 trial |
+| 修正后定向回归 | 5/13；error=0，step_limit=2 | 已知失败子集，不能外推新全量分数 |
+
+τ-bench 使用上游环境、工具与最终状态奖励，**不是本项目 7 个工具的业务成功率，也非官方榜单配置复现**。全量中 78 项正常结束但目标未达成、6 项 error、6 项步数到限；修正后仍有 8 个定向失败。详见[验收汇总](docs/演示与验收记录-2026-10-19.md)。
+
+```bash
 npm run check
-npm run dev
+npm run test:postgres                 # 真实 PG，隔离 schema
+npm run eval -- --mode fixture --trials 3
+
+# 可选评测环境，普通网页不需要
+uv sync --extra tau --frozen --cache-dir .cache/uv
+npm run check:tau
+# 会消费真实模型资源
+npm run tau:full -- --domain all --split test --trials 1 --concurrency 4 --output .data/evals/my-full-run
 ```
 
-先运行 `./scripts/npm run build` 构建网页。服务地址 `http://127.0.0.1:3000`，健康检查 `http://127.0.0.1:3000/health`。按 Ctrl+C 停止。
+全量脚本、断点续跑与进度见[评测说明](evals/README.md)。历史[全量分析](docs/评测分析-4B-vLLM四任务并行-2026-10-19.md)与[定向回归](docs/修正回归结果-2026-10-19.md)保留原始口径。
 
-不激活环境也可以使用包装入口，它始终使用项目自己的 Node.js：
+## 项目材料与目录
 
-```bash
-./scripts/npm run check
-./scripts/npm run dev
-./scripts/npm run build
-./scripts/npm start
-```
-
-初始化检查不需要模型 API key，也不发起模型调用。启用模型和数据库时配置 `.env`；示例在 `.env.example`，真实配置不入 Git。
-
-## 业务演示
-
-```bash
-./scripts/npm run demo
-./scripts/npm test
-```
-
-服务启动后，查询演示客户 Alice 的订单：
-
-```bash
-curl -H 'Authorization: Bearer demo-alice' http://127.0.0.1:3000/orders/O-1001
-```
-
-另一位演示客户 Bob 使用 `Bearer demo-bob`，订单为 `O-2001`。令牌是本地模拟数据，不是生产登录机制；所有实例默认只监听本机。未配置数据库时，数据保存在进程内存，重启会重置；配置数据库后跨进程共享并持久化。
-
-接口、工具与规则见 [业务闭环说明](docs/业务闭环.md)。
-
-用户独立部署模型服务，本机推理程序记录见 [独立模型服务记录](docs/本地模型部署.md)。Agent 只消费模型 API，不管理模型文件或推理进程。首轮真实模型联调记录见 [API 联调记录](docs/真实模型联调记录.md)。
-
-真实模型服务就绪后，在本项目配置 `.env`，运行 `./scripts/npm run chat`。用户确认通过 `/confirm <方案ID>` 完成。配置、边界和恢复说明见 [Agent 对话与 API 接入](docs/Agent对话与API接入.md)。
-
-## 依赖
-
-模型通过外部兼容 Chat Completions 的 HTTP API 接入，配置见 `.env.example` 的 `MODEL_*` 字段。Agent 不启动、停止或加载推理服务，不读取模型权重。推理服务与业务项目独立运行，连接地址可按部署环境调整。
-
-- 应用：Pi SDK、Fastify、pg、dotenv、typebox；网页使用 React、React Markdown、Lucide 图标与 Vite。
-- 开发：TypeScript、tsx、Node.js/pg 类型定义。
-- Python：httpx；开发依赖 pytest。
-
-依赖安装默认关闭生命周期脚本，与 Pi 官方发布包的安装方式一致。`package-lock.json` 和 `uv.lock` 应纳入版本控制。
-
-## 目录
+- [真实演示、截图与验收记录](docs/演示与验收记录-2026-10-19.md)
+- [架构图、取舍与源码导航](docs/架构与面试讲解.md)
+- [简历项目描述](docs/简历项目描述.md)
+- [网页接口与持久化](docs/网页使用说明.md)、[事务边界](docs/持久化与事务.md)、[故障场景](docs/故障注入与评测.md)
 
 ```text
-src/domain/      订单、方案、确认、申请与模拟数据
-src/http/        业务与网页会话 HTTP 路由、SSE、演示身份
-web/             React 售后网页
-web-dist/        网页构建产物（忽略）
-src/agent/       Pi 业务工具及会话工厂
-tests/           业务约束、接口和工具测试
-scripts/         环境入口及初始化检查
-evals/           Python 评测与数据脚本
-docs/            业务流程与接口说明
-.runtime/node/   本地 Node.js（忽略）
-.venv/           Python 虚拟环境（忽略）
-node_modules/    Node 依赖（忽略）
+web/                  React 对话、方案确认、政策、回执
+src/agent/            Pi 会话、工具、模型 API、预算与恢复
+src/domain/           售后规则、方案、确认、库存、申请
+src/retrieval/        政策版本过滤与 BM25
+src/http/             认证、会话接口、SSE
+src/storage/          业务事务和会话存储
+migrations/           业务与会话表
+tests/                业务、协议和数据库检查
+evals/                τ-bench 适配、全量运行、分析
+docs/                 截图、验证记录、架构与求职材料
 ```
 
-## 恢复依赖
-
-已有项目 Node 环境时运行 `./scripts/npm ci`。Python 使用 `uv sync --frozen --cache-dir .cache/uv`；如本机缺少 Python 3.12，需要先提供对应解释器。
-
-`.runtime/` 不进入 Git；换机器时按 `.node-version` 安装匹配平台的 Node.js，并放到 `.runtime/node/`，或使用自己的版本管理器按此版本启动 npm。
-
-## 开发进度
-
-当前完成：模拟业务闭环、HTTP API、Pi 工具注册、外部模型 API 客户端、命令行多轮对话、显式确认与运行限制、PostgreSQL 事务与幂等恢复、业务约束及模拟 API 集成测试。
-
-已完成首轮真实模型联调；已增加故障注入和自建场景评测，见 [故障注入与评测](docs/故障注入与评测.md)。已完成 [τ-bench 原生环境适配](evals/README.md)及真实模型冒烟验证。后续扩展真实模型场景覆盖和数据库细粒度锁。未配置数据库时，内存数据仍会在重启后丢失。
-
-数据库启动、迁移、并发控制与恢复边界见 [持久化与事务](docs/持久化与事务.md)。
-
-## 快速启动与评测
-
-```bash
-./scripts/npm run db:local -- start
-./scripts/npm run db:init
-./scripts/npm run chat
-```
-
-模型服务另行运行，Agent 仅通过 `.env` 中的 API 地址连接。
-
-```bash
-./scripts/npm run check
-./scripts/npm run test:postgres
-./scripts/npm run eval -- --mode fixture --trials 3
-./scripts/npm run check:tau
-./scripts/npm run tau:smoke
-```
-
-最后一条会调用真实模型；`eval --mode fixture` 不调用模型。τ-bench 可选 Python 依赖使用 `uv sync --extra tau --frozen --cache-dir .cache/uv` 恢复。
+边界：演示令牌不适用于生产；商家级行锁优先保证一致性，未证明生产吞吐；BM25 尚未扩展为向量或混合检索；完整历史暂未压缩；4B 仍有目标理解和动作顺序错误。未配置数据库时使用进程内存，不具备重启恢复能力。密钥保留在后端 `.env`，不要放入 `VITE_*` 或提交 Git。

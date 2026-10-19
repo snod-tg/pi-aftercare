@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.web.json",
     "test": "node --import tsx --test tests/*.test.ts",
     "demo": "node --import tsx scripts/demo.ts",
+    "demo:web": "sh scripts/demo-web.sh",
     "chat": "node --import tsx scripts/chat.ts",
     "check:sdk": "node --import tsx scripts/check-sdk.ts",
     "check:http": "node --import tsx scripts/check-http.ts",

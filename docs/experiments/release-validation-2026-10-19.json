@@ -1,0 +1,286 @@
+{
+  "artifact": "pi-aftercare-internship-release-validation",
+  "generatedAt": "2026-10-19T09:59:48.190234+00:00",
+  "timezone": "Asia/Shanghai",
+  "liveDemo": {
+    "model": "Qwen3.5-4B BF16",
+    "alias": "aftercare-4b",
+    "externalService": "vLLM",
+    "contextWindow": 32768,
+    "maxOutputTokens": 2048,
+    "thinking": false,
+    "schema": "aftercare_demo_20261019",
+    "sessionId": "c2635fd9-a7f4-4b3f-9ec4-fb61804c9da8",
+    "quoteId": "Q-505cf1e4-60ca-4eee-bd63-88c370164820",
+    "requestId": "R-192d7994-962d-43ff-83cb-cfd6d5298a14",
+    "beforeConfirmation": {
+      "messageCount": 2,
+      "requestCount": 0,
+      "refundCents": 19900,
+      "refreshRestored": true,
+      "run": {
+        "status": "completed",
+        "tokens": 12461,
+        "toolCalls": 7,
+        "modelCalls": 4
+      }
+    },
+    "afterConfirmation": {
+      "messageCount": 4,
+      "requestCount": 1,
+      "status": "awaiting_return",
+      "refundStatus": "not_started",
+      "run": {
+        "status": "completed",
+        "tokens": 13658,
+        "toolCalls": 2,
+        "modelCalls": 3
+      }
+    },
+    "serverRestart": {
+      "sameSession": true,
+      "sameMessages": true,
+      "sameRequest": true,
+      "resumedQueryRun": {
+        "status": "completed",
+        "tokens": 10204,
+        "toolCalls": 1,
+        "modelCalls": 2
+      },
+      "resumedQueryTool": "get_request_status"
+    },
+    "oneCommandEntry": {
+      "command": "DEMO_DATABASE_SCHEMA=aftercare_demo_20261019 npm run demo:web",
+      "verified": true,
+      "preservedMessageCount": 6,
+      "preservedRequestCount": 1
+    },
+    "duplicateConfirmation": {
+      "httpStatus": 409,
+      "requestCountAfter": 1
+    },
+    "databaseReadback": {
+      "checkedAt": "2026-10-19T09:58:38.906Z",
+      "schema": "aftercare_demo_20261019",
+      "requestCount": 1,
+      "operationCount": 1,
+      "replacementStock": 1,
+      "requestedQuantities": [
+        {
+          "lineId": "LINE-TEE",
+          "requestedQuantity": 1
+        },
+        {
+          "lineId": "LINE-JACKET",
+          "requestedQuantity": 1
+        }
+      ]
+    },
+    "toolResults": [
+      {
+        "time": "2026-10-19T09:44:16.008Z",
+        "tool": "get_order",
+        "ok": true
+      },
+      {
+        "time": "2026-10-19T09:44:16.013Z",
+        "tool": "quote_aftercare",
+        "ok": false
+      },
+      {
+        "time": "2026-10-19T09:44:17.972Z",
+        "tool": "list_variants",
+        "ok": true
+      },
+      {
+        "time": "2026-10-19T09:44:17.976Z",
+        "tool": "list_variants",
+        "ok": true
+      },
+      {
+        "time": "2026-10-19T09:44:17.979Z",
+        "tool": "quote_aftercare",
+        "ok": false
+      },
+      {
+        "time": "2026-10-19T09:44:19.580Z",
+        "tool": "search_aftercare_policy",
+        "ok": true
+      },
+      {
+        "time": "2026-10-19T09:44:19.590Z",
+        "tool": "quote_aftercare",
+        "ok": true
+      },
+      {
+        "time": "2026-10-19T09:46:31.375Z",
+        "tool": "get_request_status",
+        "ok": true
+      },
+      {
+        "time": "2026-10-19T09:46:33.006Z",
+        "tool": "create_aftercare_request",
+        "ok": true
+      },
+      {
+        "time": "2026-10-19T09:48:10.814Z",
+        "tool": "get_request_status",
+        "ok": true
+      }
+    ],
+    "screenshots": [
+      "../images/live-demo-quote.png",
+      "../images/live-demo-receipt.png",
+      "../images/live-demo-restored.png"
+    ],
+    "limitations": [
+      "One live browser case, not a success-rate estimate.",
+      "Two invalid quotes were rejected before the model corrected its plan.",
+      "No live timeout was injected in the browser case.",
+      "Demo data only; no real refunds or logistics."
+    ]
+  },
+  "checks": {
+    "node": {
+      "passed": 50,
+      "postgresSkippedInOrdinaryCheck": 3,
+      "typeSdkHttpBuildPassed": true
+    },
+    "realPostgres": {
+      "passed": 3,
+      "independentProcessAndSigkillCovered": true
+    },
+    "python": {
+      "passed": 37,
+      "rerunAfterNodePathFallback": true
+    },
+    "fixture": {
+      "mode": "fixture",
+      "metrics": [
+        {
+          "scenario": "mixed",
+          "successes": 3,
+          "trials": 3,
+          "successRate": 1,
+          "passPowerK": {
+            "1": 1,
+            "2": 1,
+            "3": 1
+          }
+        },
+        {
+          "scenario": "unconfirmed",
+          "successes": 3,
+          "trials": 3,
+          "successRate": 1,
+          "passPowerK": {
+            "1": 1,
+            "2": 1,
+            "3": 1
+          }
+        },
+        {
+          "scenario": "out_of_stock",
+          "successes": 3,
+          "trials": 3,
+          "successRate": 1,
+          "passPowerK": {
+            "1": 1,
+            "2": 1,
+            "3": 1
+          }
+        },
+        {
+          "scenario": "foreign_order",
+          "successes": 3,
+          "trials": 3,
+          "successRate": 1,
+          "passPowerK": {
+            "1": 1,
+            "2": 1,
+            "3": 1
+          }
+        },
+        {
+          "scenario": "tool_error",
+          "successes": 3,
+          "trials": 3,
+          "successRate": 1,
+          "passPowerK": {
+            "1": 1,
+            "2": 1,
+            "3": 1
+          }
+        },
+        {
+          "scenario": "response_lost",
+          "successes": 3,
+          "trials": 3,
+          "successRate": 1,
+          "passPowerK": {
+            "1": 1,
+            "2": 1,
+            "3": 1
+          }
+        },
+        {
+          "scenario": "stale_inventory",
+          "successes": 3,
+          "trials": 3,
+          "successRate": 1,
+          "passPowerK": {
+            "1": 1,
+            "2": 1,
+            "3": 1
+          }
+        },
+        {
+          "scenario": "model_error",
+          "successes": 3,
+          "trials": 3,
+          "successRate": 1,
+          "passPowerK": {
+            "1": 1,
+            "2": 1,
+            "3": 1
+          }
+        }
+      ],
+      "passed": 24,
+      "total": 24,
+      "notice": "验证协议与业务边界，不是模型能力得分，也不是官方 τ-bench 成绩。"
+    }
+  },
+  "evaluations": {
+    "upstreamTauFull": {
+      "successes": 75,
+      "total": 165,
+      "successRate": 0.45454545454545453,
+      "retail": [
+        54,
+        115
+      ],
+      "airline": [
+        21,
+        50
+      ],
+      "completed": 153,
+      "completedRewardZero": 78,
+      "error": 6,
+      "stepLimit": 6,
+      "agentMaxOutputTokens": 1024,
+      "userMaxOutputTokens": 512,
+      "trialsPerTask": 1,
+      "source": "tau-vllm4b-c4-analysis-2026-10-19.json"
+    },
+    "selectedFailureRegression": {
+      "successes": 5,
+      "total": 13,
+      "error": 0,
+      "stepLimit": 2,
+      "remainingFailures": 8,
+      "source": "tau-reliability-v4-2026-10-19.json"
+    },
+    "notice": "Upstream native tasks with custom model and simulator settings; not the seven-tool product success rate or an official leaderboard reproduction. Selected failure regression does not imply a new full score."
+  }
+}

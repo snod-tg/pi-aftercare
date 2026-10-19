@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from queue import Queue, Empty
 import subprocess
+import shutil
 import tempfile
 from threading import Thread
 from typing import Any
@@ -24,6 +25,10 @@ class PiTauAgent(Agent):
     def __init__(self, *, project_root: Path = ROOT, model_base_url: str | None = None,
                  model_name: str | None = None, api_key: str | None = None, timeout: float | None = None):
         self.root = project_root
+        local_node = self.root / '.runtime/node/bin/node'
+        self.node = str(local_node) if local_node.is_file() else shutil.which('node')
+        if not self.node:
+            raise ValueError('Node.js 24.22.x is required; install it on PATH or in .runtime/node/bin')
         self.timeout = timeout if timeout is not None else float(os.environ.get("TAU_WORKER_TIMEOUT_SECONDS", "150"))
         if not 1 <= self.timeout <= 900:
             raise ValueError("TAU_WORKER_TIMEOUT_SECONDS must be in 1..900")
@@ -52,7 +57,7 @@ class PiTauAgent(Agent):
         guard_rejections = []
         inbox: Queue = Queue()
         with tempfile.TemporaryFile(mode="w+t") as stderr:
-            process = subprocess.Popen([str(self.root / ".runtime/node/bin/node"), "--import", "tsx", "scripts/tau-worker.ts"],
+            process = subprocess.Popen([self.node, "--import", "tsx", "scripts/tau-worker.ts"],
                                        cwd=self.root, env=self.env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                        stderr=stderr, text=True, bufsize=1)
             def reader():
