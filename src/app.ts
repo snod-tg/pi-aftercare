@@ -1,10 +1,14 @@
 import Fastify from "fastify";
+import fastifyStatic from "@fastify/static";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { AftercareService } from "./domain/aftercare.js";
 import type { AftercareBackend } from "./domain/backend.js";
 import { DomainError } from "./domain/errors.js";
 import { registerRoutes } from "./http/routes.js";
+import { registerWebRoutes, type ConversationFactory } from "./http/web.js";
 
-export function buildApp(options: { service?: AftercareBackend; logger?: boolean } = {}) {
+export function buildApp(options: { service?: AftercareBackend; logger?: boolean; persistent?: boolean; conversationFactory?: ConversationFactory } = {}) {
   const app = Fastify({
     logger: options.logger ?? true,
     ajv: { customOptions: { removeAdditional: false, coerceTypes: false } },
@@ -27,7 +31,11 @@ export function buildApp(options: { service?: AftercareBackend; logger?: boolean
     version: "0.1.0",
   }));
 
-  app.register(async (routes) => registerRoutes(routes, options.service ?? new AftercareService()));
+  const service = options.service ?? new AftercareService();
+  app.register(async (routes) => registerRoutes(routes, service));
+  registerWebRoutes(app, service, options);
+  const webRoot = fileURLToPath(new URL('../web-dist/', import.meta.url));
+  if (existsSync(webRoot)) app.register(fastifyStatic, { root: webRoot });
 
   return app;
 }

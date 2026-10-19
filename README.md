@@ -6,7 +6,7 @@
 
 完成项目骨架、独立运行环境和依赖配置，并实现退换货业务的内存模拟：订单归属、同款尺码换货、部分退货、方案确认、库存版本校验、申请创建和幂等重试。当前不提供真实退换货或资金操作。配置 DATABASE_URL 时使用 PostgreSQL 持久化，否则使用内存演示。
 
-HTTP 接口、7 个 Pi 业务工具、外部模型 API 连接和命令行多轮对话已实现。`npm run demo` 离线演示确定性业务流程，`npm run chat` 通过配置的外部 API 驱动 Agent。已通过本机外部模型 API 完成一次真实模型售后闭环联调；自动化集成测试使用模拟 HTTP 响应和实际 Pi SDK 执行循环。售后政策同时提供结构化规则和按版本、生效时间过滤的 BM25 原文检索，见 [政策检索](docs/政策检索.md)。
+React 售后网页、HTTP 接口、7 个 Pi 业务工具、外部模型 API 连接和命令行多轮对话已实现。网页支持流式对话、政策依据、方案按钮确认、工具记录和申请回执，见 [网页使用说明](docs/网页使用说明.md)。`npm run demo` 离线演示确定性业务流程，`npm run chat` 通过配置的外部 API 驱动 Agent。已通过本机外部模型 API 完成一次真实模型售后闭环联调；自动化集成测试使用模拟 HTTP 响应和实际 Pi SDK 执行循环。售后政策同时提供结构化规则和按版本、生效时间过滤的 BM25 原文检索，见 [政策检索](docs/政策检索.md)。
 
 2026-10-18 初始化验证通过：TypeScript 类型检查、Pi SDK 离线会话创建、健康接口检查、编译、编译产物启动及本机 HTTP 请求、Python 虚拟环境和依赖导入。验证完成后已停止临时服务。Git 仓库已初始化；按照项目协作要求，每完成一组修改并验证后创建提交。
 
@@ -33,7 +33,7 @@ npm run check
 npm run dev
 ```
 
-服务地址 `http://127.0.0.1:3000`，健康检查 `http://127.0.0.1:3000/health`。按 Ctrl+C 停止。
+先运行 `./scripts/npm run build` 构建网页。服务地址 `http://127.0.0.1:3000`，健康检查 `http://127.0.0.1:3000/health`。按 Ctrl+C 停止。
 
 不激活环境也可以使用包装入口，它始终使用项目自己的 Node.js：
 
@@ -71,7 +71,7 @@ curl -H 'Authorization: Bearer demo-alice' http://127.0.0.1:3000/orders/O-1001
 
 模型通过外部兼容 Chat Completions 的 HTTP API 接入，配置见 `.env.example` 的 `MODEL_*` 字段。Agent 不启动、停止或加载推理服务，不读取模型权重。推理服务与业务项目独立运行，连接地址可按部署环境调整。
 
-- 应用：Pi SDK、Fastify、pg、dotenv、typebox。
+- 应用：Pi SDK、Fastify、pg、dotenv、typebox；网页使用 React、React Markdown、Lucide 图标与 Vite。
 - 开发：TypeScript、tsx、Node.js/pg 类型定义。
 - Python：httpx；开发依赖 pytest。
 
@@ -81,7 +81,9 @@ curl -H 'Authorization: Bearer demo-alice' http://127.0.0.1:3000/orders/O-1001
 
 ```text
 src/domain/      订单、方案、确认、申请与模拟数据
-src/http/        HTTP 路由和演示身份
+src/http/        业务与网页会话 HTTP 路由、SSE、演示身份
+web/             React 售后网页
+web-dist/        网页构建产物（忽略）
 src/agent/       Pi 业务工具及会话工厂
 tests/           业务约束、接口和工具测试
 scripts/         环境入口及初始化检查

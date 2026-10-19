@@ -7,6 +7,7 @@ node_modules/
 .env.*
 !.env.example
 dist/
+web-dist/
 coverage/
 __pycache__/
 .pytest_cache/

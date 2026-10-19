@@ -37,6 +37,7 @@ export interface TraceEvent {
   text?: string;
   tool?: string;
   ok?: boolean;
+  data?: unknown;
 }
 
 export interface RunResult {
@@ -78,6 +79,7 @@ export class AgentConversation {
     fetch?: typeof globalThis.fetch;
     restorePendingQuotes?: boolean;
     faults?: ToolFaultInjector;
+    confirmationMode?: "web" | "cli";
   }) {
     const limits = { ...readRunLimits({}), ...options.limits };
     if (Object.values(limits).some((value) => !Number.isSafeInteger(value) || value < 1)) {
@@ -90,6 +92,7 @@ export class AgentConversation {
       actor: options.actor,
       modelRuntime,
       model,
+      ...(options.confirmationMode ? { confirmationMode: options.confirmationMode } : {}),
       toolHooks: {
         aroundTool: (name, operation) => options.faults ? options.faults.run(name, operation) : Promise.resolve(operation()),
         beforeTool: () => conversation.beforeTool(),
@@ -162,8 +165,13 @@ export class AgentConversation {
     return { ...receipt };
   }
 
-  async confirmAndContinue(quoteId: string, onEvent?: (event: TraceEvent) => void) {
+  async confirmAndContinue(quoteId: string, onEvent?: (event: TraceEvent) => void, signal?: AbortSignal) {
+    const checkCancelled = () => {
+      if (signal?.aborted) throw new DomainError("RUN_CANCELLED", "本轮已停止，可继续查询实际申请状态", 409);
+    };
+    checkCancelled();
     const receipt = await this.confirm(quoteId);
+    checkCancelled();
     return this.run(`应用已记录用户对下列方案的明确确认：\n${JSON.stringify(receipt)}\n请使用上述标识继续处理，先查询已有操作结果，必要时创建申请。`, onEvent);
   }
 
@@ -200,7 +208,8 @@ export class AgentConversation {
       } else if (event.type === "tool_execution_start") {
         emit({ type: "tool_start", tool: event.toolName });
       } else if (event.type === "tool_execution_end") {
-        emit({ type: "tool_end", tool: event.toolName, ok: !event.isError });
+        emit({ type: "tool_end", tool: event.toolName, ok: !event.isError,
+          ...(event.toolName === "search_aftercare_policy" && !event.isError ? { data: event.result.details } : {}) });
       } else if (event.type === "message_end" && event.message.role === "assistant") {
         text = event.message.content.filter((part) => part.type === "text").map((part) => part.text).join("");
         if (event.message.stopReason === "error") failure = event.message.errorMessage ?? "模型 API 请求失败";
