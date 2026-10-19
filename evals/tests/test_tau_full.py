@@ -46,7 +46,7 @@ def test_interruption_preserves_finished_trial_and_dry_run_makes_no_files(tmp_pa
     monkeypatch.setattr(runner, 'inventory', lambda domains, split: [{'domain': 'retail', 'task_index': 0, 'task_hash': 'a'}])
     monkeypatch.setenv('MODEL_NAME', 'fixture-model')
     monkeypatch.setenv('MODEL_BASE_URL', 'http://model.test/v1')
-    settings = args(tmp_path)
+    settings = args(tmp_path, domain='retail')
     def execute(task, trial, settings, output):
         if trial == 2:
             raise KeyboardInterrupt()
@@ -56,7 +56,7 @@ def test_interruption_preserves_finished_trial_and_dry_run_makes_no_files(tmp_pa
     assert summary['finished_runs'] == 1
     assert summary['complete'] is False
     assert summary['mean_passPowerK_completed_tasks'] == {}
-    dry = args(tmp_path, dry_run=True, output=str(tmp_path / 'dry'))
+    dry = args(tmp_path, domain='retail', dry_run=True, output=str(tmp_path / 'dry'))
     assert runner.run(dry, execute) == 0
     assert not (tmp_path / 'dry').exists()
 
