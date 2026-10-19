@@ -156,6 +156,19 @@ def run(args, executor=execute_trial):
         if start >= size or (stop is not None and stop > size):
             raise ValueError(f'{domain} 任务范围越界，共{size}项')
     tasks = [task for task in tasks if task['task_index'] >= start and (stop is None or task['task_index'] < stop)]
+    selected_ids = getattr(args, 'task_ids', None)
+    if selected_ids:
+        wanted = set()
+        for value in selected_ids:
+            try:
+                domain, index = value.split(':')
+                wanted.add((domain, int(index)))
+            except (ValueError, TypeError):
+                raise ValueError('--task-id 格式为 retail:14 或 airline:3')
+        available = {(t['domain'], t['task_index']) for t in tasks}
+        if not wanted <= available:
+            raise ValueError('--task-id 超出所选域、split或索引范围')
+        tasks = [t for t in tasks if (t['domain'], t['task_index']) in wanted]
     counts = dict(Counter(t['domain'] for t in tasks))
     print(f"Tasks: {counts}; trials={args.trials}; runs={len(tasks) * args.trials}", flush=True)
     if args.dry_run:
@@ -164,8 +177,12 @@ def run(args, executor=execute_trial):
     if not model_name:
         raise ValueError('请先在 .env 中配置 MODEL_NAME')
     base = endpoint('MODEL_BASE_URL')
+    agent_profile = os.environ.get('TAU_AGENT_PROFILE', 'baseline')
+    user_profile = os.environ.get('TAU_USER_PROFILE', 'upstream')
+    if agent_profile not in ('baseline', 'careful-v1') or user_profile not in ('upstream', 'faithful-v1'):
+        raise ValueError('Unknown agent/customer experiment profile')
     config = {'upstream_commit': COMMIT, 'domains': domains, 'split': args.split, 'trials': args.trials,
-              'task_start': start, 'task_stop': stop,
+              'task_start': start, 'task_stop': stop, 'selected_task_ids': sorted(selected_ids) if selected_ids else None,
               'max_steps': args.max_steps, 'task_timeout': args.task_timeout, 'model': model_name,
               'model_base_url': base, 'user_model': os.environ.get('TAU_USER_MODEL') or model_name,
               'user_base_url': endpoint('TAU_USER_BASE_URL', base), 'user_strategy': 'api-llm',
@@ -174,11 +191,14 @@ def run(args, executor=execute_trial):
               'model_service_context_pool': os.environ.get('MODEL_SERVICE_CONTEXT_POOL', 'unknown'),
               'evaluation_concurrency': concurrency,
               'model_service_description': os.environ.get('MODEL_SERVICE_DESCRIPTION', 'unknown'),
-              'user_max_output_tokens': 512,
+              'user_max_output_tokens': int(os.environ.get('TAU_USER_MAX_OUTPUT_TOKENS', '512')),
+              'agent_profile': agent_profile, 'user_profile': user_profile,
+              'user_max_attempts': int(os.environ.get('TAU_USER_MAX_ATTEMPTS', '2' if user_profile == 'faithful-v1' else '1')),
+              'max_model_calls': int(os.environ.get('TAU_MAX_MODEL_CALLS', str(args.max_steps * (2 if agent_profile == 'careful-v1' else 1)))),
               'max_output_tokens': os.environ.get('MODEL_MAX_OUTPUT_TOKENS', '1024'),
               'turn_timeout_ms': os.environ.get('TAU_TURN_TIMEOUT_MS', '120000'),
               'worker_timeout_seconds': os.environ.get('TAU_WORKER_TIMEOUT_SECONDS', '150'),
-              'code_hash': hashlib.sha256(b''.join((ROOT / p).read_bytes() for p in ('evals/run_tau_full.py', 'evals/run_tau.py', 'evals/tau_adapter.py', 'scripts/tau-worker.ts', 'evals/progress.py'))).hexdigest(),
+              'code_hash': hashlib.sha256(b''.join((ROOT / p).read_bytes() for p in ('evals/run_tau_full.py', 'evals/run_tau.py', 'evals/tau_adapter.py', 'scripts/tau-worker.ts', 'evals/progress.py', 'evals/api_user.py', 'evals/action_guard.py', 'src/agent/reliability.ts'))).hexdigest(),
               'tasks': tasks}
     fingerprint = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
     output = Path(args.output).resolve()
@@ -285,6 +305,7 @@ def main(argv=None):
     parser.add_argument('--trials', type=int, default=1)
     parser.add_argument('--task-start', type=int, default=0, help='每个域的起始任务索引，含起始')
     parser.add_argument('--task-stop', type=int, help='每个域的结束任务索引，不含末端；默认全部')
+    parser.add_argument('--task-id', dest='task_ids', action='append', help='指定诊断任务，可重复：--task-id retail:14 --task-id airline:3')
     parser.add_argument('--max-steps', type=int, default=30)
     parser.add_argument('--task-timeout', type=int, default=900, help='每个 trial 的最长秒数')
     parser.add_argument('--concurrency', type=int, default=1, help='同时运行的独立任务数，1–16；与模型服务槽位分别设置')

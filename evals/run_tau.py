@@ -7,47 +7,11 @@ from pathlib import Path
 from datetime import datetime, timezone
 from math import comb
 os.environ.setdefault('LITELLM_LOCAL_MODEL_COST_MAP', 'True')
-import httpx
 from dotenv import load_dotenv
-from tau_bench.envs.user import BaseUserSimulationEnv, LLMUserSimulationEnv
 from tau_bench.envs import get_env
 from evals.tau_adapter import PiTauAgent, ROOT
 from evals.tau_smoke import make_smoke_env
-from evals.progress import progress
-
-class ApiUser(BaseUserSimulationEnv):
-    """Same user instructions as upstream, through an independently configured HTTP API."""
-    def __init__(self):
-        self.messages = []
-        self.tokens = 0
-    def generate(self):
-        progress("user_model_request")
-        base = os.environ.get('TAU_USER_BASE_URL') or os.environ['MODEL_BASE_URL']
-        model = os.environ.get('TAU_USER_MODEL') or os.environ['MODEL_NAME']
-        key = os.environ.get('TAU_USER_API_KEY') or os.environ.get('MODEL_API_KEY', 'local')
-        with httpx.Client(timeout=120, trust_env=False) as client:
-            response = client.post(base.rstrip('/') + '/chat/completions', headers={'Authorization': f'Bearer {key}'}, json={'model': model, 'messages': self.messages, 'max_tokens': 512, 'stream': False})
-            response.raise_for_status()
-            data = response.json()
-        choice = data['choices'][0]
-        text = choice['message'].get('content')
-        if choice['finish_reason'] != 'stop' or not text:
-            raise RuntimeError('用户模拟器没有生成完整回复，请检查思考模式及输出上限')
-        self.tokens += data.get('usage', {}).get('total_tokens', 0)
-        progress('user_model_response', tokens=data.get('usage', {}).get('total_tokens', 0))
-        self.messages.append({'role': 'assistant', 'content': text})
-        return text
-    def reset(self, instruction=None):
-        self.tokens = 0
-        prompt = LLMUserSimulationEnv.build_system_prompt(self, instruction)
-        self.messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': 'Hi! How can I help you today?'}]
-        return self.generate()
-    def step(self, content):
-        self.messages.append({'role': 'user', 'content': content})
-        return self.generate()
-    def get_total_cost(self):
-        # Upstream expects a float; our report explicitly overrides this unknown price.
-        return 0.0
+from evals.api_user import ApiUser
 
 def main():
     load_dotenv(ROOT / '.env')
@@ -65,6 +29,7 @@ def main():
         parser.error('trials 1–20, max-steps 1–100, task-index ≥ 0')
     results = []
     for trial in range(1, args.trials + 1):
+        env = None
         try:
             if args.smoke:
                 env = make_smoke_env()
@@ -77,7 +42,14 @@ def main():
             if isinstance(env.user, ApiUser):
                 result['info']['user_tokens'] = env.user.tokens
         except Exception as exc:
-            result = {'reward': 0, 'messages': [], 'info': {'error_type': type(exc).__name__}, 'total_cost': None}
+            result = {'reward': 0, 'messages': [], 'info': {'error_type': type(exc).__name__,
+                'adapter_error': str(exc)[:500], 'error_details': getattr(exc, 'details', None),
+                'task': env.task.model_dump() if env is not None else {},
+                'pi_adapter': {'status': 'error', 'environment_steps': 0, 'tokens': 0}}, 'total_cost': None}
+        if env is not None and isinstance(env.user, ApiUser):
+            result['info']['user_tokens'] = env.user.tokens
+            result['info']['user_profile'] = env.user.profile
+            result['info']['user_diagnostics'] = env.user.diagnostics
         results.append({'trial': trial, **result})
         print(f"trial={trial} reward={result['reward']} status={result['info'].get('pi_adapter', {}).get('status', 'error')}", flush=True)
     successes = sum(r['reward'] == 1 for r in results)
@@ -86,7 +58,11 @@ def main():
     output.write_text(json.dumps({'benchmark': 'tau-bench-adapter-custom-smoke' if args.smoke else 'tau-bench-upstream',
         'upstream_commit': '59a200c6d575d595120f1cb70fea53cef0632f6b', 'domain': 'custom' if args.smoke else args.domain,
         'split': None if args.smoke else args.split, 'task_index': None if args.smoke else args.task_index,
-        'user': 'scripted' if args.smoke else args.user, 'model': os.environ.get('MODEL_NAME'), 'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'user': 'scripted' if args.smoke else args.user,
+        'agent_profile': os.environ.get('TAU_AGENT_PROFILE', 'baseline'),
+        'user_profile': os.environ.get('TAU_USER_PROFILE', 'upstream'),
+        'agent_max_output_tokens': os.environ.get('MODEL_MAX_OUTPUT_TOKENS', '1024'),
+        'user_max_output_tokens': os.environ.get('TAU_USER_MAX_OUTPUT_TOKENS', '512'), 'model': os.environ.get('MODEL_NAME'), 'generatedAt': datetime.now(timezone.utc).isoformat(),
         'successRate': successes / args.trials, 'passPowerK': {k: comb(successes, k) / comb(args.trials, k) if successes >= k else 0 for k in (1, 2, 3) if args.trials >= k},
         'notice': '自建冒烟任务，不是官方任务成绩。' if args.smoke else '选定官方任务的本地运行，不是全量评测；记录用户模拟器与模型配置后才可比较。',
         'results': results}, ensure_ascii=False, indent=2) + '\n')

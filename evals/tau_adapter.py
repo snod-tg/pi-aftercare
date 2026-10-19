@@ -9,6 +9,7 @@ import tempfile
 from threading import Thread
 from typing import Any
 from evals.progress import progress
+from evals.action_guard import ObservedOrderGuard
 
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 from tau_bench.agents.base import Agent
@@ -24,6 +25,10 @@ class PiTauAgent(Agent):
         if not 1 <= self.timeout <= 900:
             raise ValueError("TAU_WORKER_TIMEOUT_SECONDS must be in 1..900")
         self.env = dict(os.environ)
+        self.profile = self.env.get('TAU_AGENT_PROFILE', 'baseline')
+        if self.profile not in ('baseline', 'careful-v1'):
+            raise ValueError('TAU_AGENT_PROFILE must be baseline or careful-v1')
+        self.env['TAU_AGENT_PROFILE'] = self.profile
         for name, value in (("MODEL_BASE_URL", model_base_url), ("MODEL_NAME", model_name), ("MODEL_API_KEY", api_key)):
             if value is not None:
                 self.env[name] = value
@@ -39,6 +44,9 @@ class PiTauAgent(Agent):
         reward, terminal, steps, tokens = 0.0, False, 0, 0
         status = "step_limit"
         worker_stats: dict[str, Any] = {}
+        diagnostics = []
+        guard = ObservedOrderGuard() if self.profile == 'careful-v1' else None
+        guard_rejections = []
         inbox: Queue = Queue()
         with tempfile.TemporaryFile(mode="w+t") as stderr:
             process = subprocess.Popen([str(self.root / ".runtime/node/bin/node"), "--import", "tsx", "scripts/tau-worker.ts"],
@@ -70,7 +78,17 @@ class PiTauAgent(Agent):
                     raise RuntimeError("environment step limit reached")
                 steps += 1
                 progress("environment_action", step=steps, action=action.name)
-                response = env.step(action)
+                rejection = guard.validate(action) if guard else None
+                if rejection:
+                    from tau_bench.types import EnvResponse, EnvInfo
+                    guard_rejections.append({'step': steps, 'tool': action.name, 'reason': rejection})
+                    progress('action_guard_rejected', step=steps, action=action.name)
+                    response = EnvResponse(observation='Error: observed-fact guard: ' + rejection,
+                                           reward=0, done=False, info=EnvInfo(task=env.task, source=action.name))
+                else:
+                    response = env.step(action)
+                    if guard:
+                        guard.observe(action.name, response.observation)
                 progress("environment_result", step=steps, action=action.name, done=response.done, reward=response.reward)
                 reward, terminal = response.reward, response.done
                 info.update(response.info.model_dump())
@@ -87,25 +105,28 @@ class PiTauAgent(Agent):
                         if event["type"] == "progress":
                             progress(event["event"], **event.get("stats", {}))
                             continue
+                        if event['type'] == 'diagnostic':
+                            diagnostics.append({k: v for k, v in event.items() if k != 'type'})
+                            continue
                         if event["type"] == "action":
                             action = Action(**event["action"])
+                            messages.append({"role": "assistant", "tool_calls": [{"id": event["id"], "type": "function", "function": {"name": action.name, "arguments": json.dumps(action.kwargs)}}]})
                             response = step(action)
-                            messages.extend([
-                                {"role": "assistant", "tool_calls": [{"id": event["id"], "type": "function", "function": {"name": action.name, "arguments": json.dumps(action.kwargs)}}]},
-                                {"role": "tool", "tool_call_id": event["id"], "name": action.name, "content": response.observation},
-                            ])
+                            messages.append({"role": "tool", "tool_call_id": event["id"], "name": action.name, "content": response.observation})
                             send({"type": "observation", "id": event["id"], "observation": response.observation, "done": response.done})
                         elif event["type"] == "turn":
                             worker_stats = {k: event[k] for k in ("modelCalls", "toolCalls")}
                             tokens += event["tokens"]
                             if event.get("error"):
+                                info['worker_error_code'] = event.get('errorCode')
                                 raise RuntimeError(event["error"])
                             if terminal:
                                 break
                             if not event.get("text"):
                                 raise RuntimeError("Pi returned an empty response")
+                            messages.append({"role": "assistant", "content": event["text"]})
                             response = step(Action(name="respond", kwargs={"content": event["text"]}))
-                            messages.extend([{"role": "assistant", "content": event["text"]}, {"role": "user", "content": response.observation}])
+                            messages.append({"role": "user", "content": response.observation})
                             observation = response.observation
                             break
                         else:
@@ -114,6 +135,7 @@ class PiTauAgent(Agent):
             except Exception as exc:
                 status = "error"
                 info["adapter_error"] = str(exc)[:1000]
+                info["error_details"] = getattr(exc, "details", None)
             finally:
                 try:
                     send({"type": "close"})
@@ -123,6 +145,9 @@ class PiTauAgent(Agent):
                     process.wait(timeout=3)
                 process.stdin.close()
                 process.stdout.close()
+        info['agent_profile'] = self.profile
+        info['model_diagnostics'] = diagnostics
+        info['action_guard_rejections'] = guard_rejections
         info["pi_adapter"] = {"status": status, "environment_steps": steps, "tokens": tokens, **worker_stats,
                               "upstream_commit": "59a200c6d575d595120f1cb70fea53cef0632f6b", "cost": "unknown"}
         return SolveResult(reward=reward if terminal else 0.0, messages=messages, info=info, total_cost=None)

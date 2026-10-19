@@ -3,12 +3,15 @@ import { createInterface } from 'node:readline';
 import { defineTool, type AgentSession } from '@earendil-works/pi-coding-agent';
 import type { TSchema } from 'typebox';
 import { createConnectedModel, readModelConnection } from '../src/agent/model-connection.js';
+import { reliabilityInstructions } from '../src/agent/reliability.js';
 import { createIsolatedToolSession } from '../src/agent/session.js';
 
 const lines = createInterface({ input: process.stdin, terminal: false });
 const emit = (message: unknown) => process.stdout.write(JSON.stringify(message) + '\n');
 let session: AgentSession | undefined;
-let active = false; let done = false; let actions = 0; let modelCalls = 0; let maxSteps = 30;
+let active = false; let done = false; let actions = 0; let modelCalls = 0; let maxSteps = 30; let maxModelCalls = 30;
+let stopCode: string | undefined;
+let invalidGeneration = false;
 const pending = new Map<string, { resolve: (value: string) => void; reject: (error: Error) => void }>();
 let key = '';
 const safeError = (error: unknown) => {
@@ -19,6 +22,10 @@ interface WireTool { type: string; function: { name: string; description: string
 async function init(message: { tools: WireTool[]; wiki: string; maxSteps: number }) {
   if (session || !Array.isArray(message.tools) || !Number.isSafeInteger(message.maxSteps) || message.maxSteps < 1 || message.maxSteps > 100) throw new Error('非法或重复 init');
   maxSteps = message.maxSteps;
+  const profile = process.env.TAU_AGENT_PROFILE ?? 'baseline';
+  if (!['baseline', 'careful-v1'].includes(profile)) throw new Error('非法 TAU_AGENT_PROFILE');
+  maxModelCalls = Number(process.env.TAU_MAX_MODEL_CALLS ?? (profile === 'careful-v1' ? maxSteps * 2 : maxSteps));
+  if (!Number.isSafeInteger(maxModelCalls) || maxModelCalls < 1 || maxModelCalls > 1000) throw new Error('非法 TAU_MAX_MODEL_CALLS');
   const connection = readModelConnection(); key = connection.apiKey;
   const { modelRuntime, model } = await createConnectedModel(connection);
   const names = new Set<string>();
@@ -28,7 +35,9 @@ async function init(message: { tools: WireTool[]; wiki: string; maxSteps: number
     names.add(f.name);
     return defineTool({ name: f.name, label: f.name, description: f.description, parameters: f.parameters, executionMode: 'sequential',
       execute: async (id, args, signal) => {
-        if (done || ++actions > maxSteps) throw new Error('环境动作步数已达上限');
+        if (invalidGeneration) throw new Error('截断或失败的模型输出不得执行工具');
+        if (done || actions >= maxSteps) { stopCode = 'tool_limit'; throw new Error('环境动作步数已达上限'); }
+        actions += 1;
         const observation = await new Promise<string>((resolve, reject) => {
           const abort = () => { pending.delete(id); reject(new Error('环境动作已取消')); };
           pending.set(id, { resolve: value => { signal?.removeEventListener('abort', abort); resolve(value); }, reject });
@@ -40,10 +49,12 @@ async function init(message: { tools: WireTool[]; wiki: string; maxSteps: number
       },
     });
   });
-  ({ session } = await createIsolatedToolSession({ modelRuntime, model, tools, systemPrompt: message.wiki }));
+  ({ session } = await createIsolatedToolSession({ modelRuntime, model, tools, systemPrompt: message.wiki + (profile === 'careful-v1' ? reliabilityInstructions : '') }));
   const original = session.agent.streamFunction;
   session.agent.streamFunction = (selected, context, options) => {
-    if (done || ++modelCalls > maxSteps) throw new Error('模型请求次数已达上限');
+    if (invalidGeneration) throw new Error('上一条模型输出不完整，终止本轮');
+    if (done || modelCalls >= maxModelCalls) { stopCode = 'model_call_limit'; throw new Error('模型请求次数已达上限'); }
+    modelCalls += 1;
     emit({ type: 'progress', event: 'model_request', stats: { modelCalls, toolCalls: actions } });
     return original(selected, context, { ...options, maxTokens: connection.maxOutputTokens, maxRetries: 0 });
   };
@@ -56,18 +67,23 @@ async function prompt(text: string) {
   const before = session.getSessionStats().tokens.total;
   const unsubscribe = session.subscribe(event => {
     if (event.type === 'message_end' && event.message.role === 'assistant') {
-      emit({ type: 'progress', event: 'model_response', stats: { modelCalls, stopReason: event.message.stopReason } });
+      emit({ type: 'progress', event: 'model_response', stats: { modelCalls, stopReason: event.message.stopReason, outputTokens: event.message.usage.output, maxOutputTokens: readModelConnection().maxOutputTokens } });
       answer = event.message.content.filter(p => p.type === 'text').map(p => p.text).join('');
-      if (['error', 'length'].includes(event.message.stopReason)) error = event.message.errorMessage ?? `模型输出终止：${event.message.stopReason}`;
+      if (['error', 'length'].includes(event.message.stopReason)) {
+        invalidGeneration = true;
+        error ??= event.message.errorMessage ?? `模型输出终止：${event.message.stopReason}`;
+        emit({ type: 'diagnostic', stopReason: event.message.stopReason, outputTokens: event.message.usage.output,
+          partial: safeError(JSON.stringify(event.message.content)), error: safeError(error) });
+      }
     }
   });
   const timeout = Number(process.env.TAU_TURN_TIMEOUT_MS ?? '120000');
   if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 600000) throw new Error('非法 TAU_TURN_TIMEOUT_MS');
   const timer = setTimeout(() => { timedOut = true; session?.agent.abort(); }, timeout);
   try { await session.prompt(text, { expandPromptTemplates: false }); }
-  catch (cause) { error = safeError(cause); }
+  catch (cause) { error ??= safeError(cause); }
   finally { clearTimeout(timer); unsubscribe(); active = false; }
-  emit({ type: 'turn', text: answer, done, modelCalls, toolCalls: actions, tokens: session.getSessionStats().tokens.total - before, ...(timedOut ? { error: '模型轮次超时' } : error && !done ? { error: safeError(error) } : {}) });
+  emit({ type: 'turn', text: answer, done, modelCalls, toolCalls: actions, tokens: session.getSessionStats().tokens.total - before, ...(stopCode ? { errorCode: stopCode } : {}), ...(timedOut ? { error: '模型轮次超时' } : error && !done ? { error: safeError(error) } : {}) });
 }
 lines.on('line', line => {
   void (async () => {

@@ -148,3 +148,13 @@ def test_real_subprocess_stops_promptly_when_parallel_run_is_cancelled(tmp_path,
         timer.cancel()
     assert time.monotonic() - started < 5
     assert len(processes) == 1 and processes[0].poll() is not None
+
+
+def test_explicit_diagnostic_task_ids_do_not_silently_expand_to_full_suite(tmp_path, capsys):
+    settings = args(tmp_path, task_ids=['retail:14', 'airline:3'], dry_run=True)
+    assert runner.run(settings) == 0
+    output = capsys.readouterr().out
+    assert "'retail': 1" in output and "'airline': 1" in output
+    settings.task_ids = ['retail:999']
+    with pytest.raises(ValueError, match='超出'):
+        runner.run(settings)

@@ -7,7 +7,7 @@ from evals.tau_adapter import PiTauAgent
 from evals.tau_smoke import make_smoke_env
 
 @contextmanager
-def model_api(*, wrong_item=False, unavailable=False):
+def model_api(*, wrong_item=False, unavailable=False, finish_length_at=None):
     requests = []
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -29,7 +29,7 @@ def model_api(*, wrong_item=False, unavailable=False):
             base = {"id": f"response-{index}", "object": "chat.completion.chunk", "created": 1, "model": body["model"]}
             chunks = [
                 {**base, "choices": [{"index": 0, "delta": {"role": "assistant", **delta}, "finish_reason": None}]},
-                {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls" if "tool_calls" in delta else "stop"}]},
+                {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "length" if index == finish_length_at else "tool_calls" if "tool_calls" in delta else "stop"}]},
                 {**base, "choices": [], "usage": {"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60}},
             ]
             data = ("".join("data: " + json.dumps(chunk) + "\n\n" for chunk in chunks) + "data: [DONE]\n\n").encode()
@@ -79,3 +79,50 @@ def test_adapter_bounds_actions_and_propagates_model_api_failure():
     assert result.reward == 0
     assert result.info["pi_adapter"]["status"] == "error"
     assert len(requests) == 1
+
+
+def test_truncated_tool_output_is_recorded_but_never_executed():
+    env = make_smoke_env()
+    with model_api(finish_length_at=2) as (url, requests):
+        result = PiTauAgent(model_base_url=url, model_name="test-model", api_key="local", timeout=15).solve(env, task_index=0, max_num_steps=10)
+    assert result.reward == 0 and result.info['pi_adapter']['status'] == 'error'
+    assert env.data['orders']['#W1000000']['status'] == 'delivered'
+    truncated = next(d for d in result.info['model_diagnostics'] if d['stopReason'] == 'length')
+    assert truncated['outputTokens'] == 10
+    assert 'return_delivered_order_items' in truncated['partial']
+
+
+def test_customer_failure_preserves_agent_reply_and_structured_diagnostics():
+    from evals.api_user import UserSimulationError
+    env = make_smoke_env()
+    def fail(content):
+        raise UserSimulationError('用户模拟器没有生成完整回复', {'finish_reason': 'length', 'completion_tokens': 512})
+    env.user.step = fail
+    with model_api() as (url, requests):
+        result = PiTauAgent(model_base_url=url, model_name="test-model", api_key="local", timeout=15).solve(env, task_index=0, max_num_steps=10)
+    assert result.messages[-1]['role'] == 'assistant'
+    assert '明确确认' in result.messages[-1]['content']
+    assert result.info['error_details']['finish_reason'] == 'length'
+
+
+def test_careful_profile_blocks_wrong_item_without_hidden_instruction_leak(monkeypatch):
+    monkeypatch.setenv('TAU_AGENT_PROFILE', 'careful-v1')
+    env = make_smoke_env()
+    env.task.instruction += ' PRIVATE_TEST_SECRET'
+    with model_api(wrong_item=True) as (url, requests):
+        result = PiTauAgent(model_base_url=url, model_name="test-model", api_key="local", timeout=15).solve(env, task_index=0, max_num_steps=10)
+    assert result.reward == 0
+    assert result.info['action_guard_rejections'][0]['tool'] == 'return_delivered_order_items'
+    assert result.info['reward_info']['info']['r_actions'] == 0
+    assert any(m.get('role') == 'tool' and 'observed-fact guard' in m.get('content', '') for m in result.messages)
+    assert 'PRIVATE_TEST_SECRET' not in json.dumps(requests)
+    assert 'Track every request' in requests[0]['messages'][0]['content'] or 'track every request' in requests[0]['messages'][0]['content']
+
+
+def test_model_call_limit_is_independent_and_counts_only_issued_requests(monkeypatch):
+    monkeypatch.setenv('TAU_MAX_MODEL_CALLS', '1')
+    with model_api() as (url, requests):
+        result = PiTauAgent(model_base_url=url, model_name="test-model", api_key="local", timeout=15).solve(make_smoke_env(), task_index=0, max_num_steps=10)
+    assert len(requests) == 1
+    assert result.info['pi_adapter']['modelCalls'] == 1
+    assert result.info['worker_error_code'] == 'model_call_limit'
