@@ -81,3 +81,5 @@ Python 依赖在项目 `.venv` 内。tau 为可选依赖，常规业务不需要
 全量脚本在输出目录生成 `progress.log` 和对应的 `progress.jsonl`，显示当前任务、模型请求及环境工具调用；`tail -f <输出目录>/progress.log` 可实时查看。不会写入密钥、对话正文或工具参数。summary.json 仍按完成的 trial 更新。可用 TAU_WORKER_TIMEOUT_SECONDS 配置 Python 等待时间，与 TAU_TURN_TIMEOUT_MS 配合调整。
 
 本轮32768上下文运行参数及进度命令见 [2026-10-19 全量评测](../docs/全量评测进度.md)。
+
+官方任务可用 --task-start/--task-stop 选择每个域的索引范围（包含起点，不含终点）；默认范围仍为全量。双4B独立API配置及前3项复测见 [双4B评测](../docs/双4B评测.md)。

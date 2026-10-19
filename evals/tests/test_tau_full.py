@@ -59,3 +59,12 @@ def test_interruption_preserves_finished_trial_and_dry_run_makes_no_files(tmp_pa
     dry = args(tmp_path, dry_run=True, output=str(tmp_path / 'dry'))
     assert runner.run(dry, execute) == 0
     assert not (tmp_path / 'dry').exists()
+
+
+def test_task_range_selects_only_requested_official_tasks(tmp_path, capsys):
+    settings = args(tmp_path, domain='retail', task_start=0, task_stop=3, dry_run=True)
+    assert runner.run(settings) == 0
+    assert "'retail': 3" in capsys.readouterr().out
+    settings.task_stop = 116
+    with pytest.raises(ValueError, match='越界'):
+        runner.run(settings)

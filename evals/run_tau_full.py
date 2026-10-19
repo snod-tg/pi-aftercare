@@ -5,6 +5,7 @@
 # 中断后续跑：.venv/bin/python -m evals.run_tau_full --domain all --split test --trials 1 --resume
 # 只列任务，不调用模型：.venv/bin/python -m evals.run_tau_full --domain all --split test --dry-run
 # 3 次可靠性评测：.venv/bin/python -m evals.run_tau_full --domain all --split test --trials 3 --output .data/evals/tau-full-3
+# 先测零售前3项：.venv/bin/python -m evals.run_tau_full --domain retail --split test --task-stop 3 --output .data/evals/tau-pilot
 # 首次安装可选依赖：uv sync --extra tau --frozen --cache-dir .cache/uv
 """Sequential full-suite runner: upstream tasks, per-trial checkpoints, resume and summaries."""
 from __future__ import annotations
@@ -122,6 +123,14 @@ def summarize(tasks, records, trials, fingerprint):
 def run(args, executor=execute_trial):
     domains = ['retail', 'airline'] if args.domain == 'all' else [args.domain]
     tasks = inventory(domains, args.split)
+    start, stop = getattr(args, 'task_start', 0), getattr(args, 'task_stop', None)
+    if start < 0 or (stop is not None and stop <= start):
+        raise ValueError('任务范围需满足 0 <= task-start < task-stop（不含末端）')
+    for domain in domains:
+        size = sum(task['domain'] == domain for task in tasks)
+        if start >= size or (stop is not None and stop > size):
+            raise ValueError(f'{domain} 任务范围越界，共{size}项')
+    tasks = [task for task in tasks if task['task_index'] >= start and (stop is None or task['task_index'] < stop)]
     counts = dict(Counter(t['domain'] for t in tasks))
     print(f"Tasks: {counts}; trials={args.trials}; runs={len(tasks) * args.trials}", flush=True)
     if args.dry_run:
@@ -131,6 +140,7 @@ def run(args, executor=execute_trial):
         raise ValueError('请先在 .env 中配置 MODEL_NAME')
     base = endpoint('MODEL_BASE_URL')
     config = {'upstream_commit': COMMIT, 'domains': domains, 'split': args.split, 'trials': args.trials,
+              'task_start': start, 'task_stop': stop,
               'max_steps': args.max_steps, 'task_timeout': args.task_timeout, 'model': model_name,
               'model_base_url': base, 'user_model': os.environ.get('TAU_USER_MODEL') or model_name,
               'user_base_url': endpoint('TAU_USER_BASE_URL', base), 'user_strategy': 'api-llm',
@@ -199,6 +209,8 @@ def main(argv=None):
     parser.add_argument('--domain', choices=['all', 'retail', 'airline'], default='all')
     parser.add_argument('--split', choices=['test', 'dev', 'train'], default='test')
     parser.add_argument('--trials', type=int, default=1)
+    parser.add_argument('--task-start', type=int, default=0, help='每个域的起始任务索引，含起始')
+    parser.add_argument('--task-stop', type=int, help='每个域的结束任务索引，不含末端；默认全部')
     parser.add_argument('--max-steps', type=int, default=30)
     parser.add_argument('--task-timeout', type=int, default=900, help='每个 trial 的最长秒数')
     parser.add_argument('--output', default='.data/evals/tau-full')
