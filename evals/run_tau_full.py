@@ -24,6 +24,7 @@ from urllib.parse import urlsplit
 
 os.environ.setdefault('LITELLM_LOCAL_MODEL_COST_MAP', 'True')
 from dotenv import load_dotenv
+from evals.progress import progress
 
 ROOT = Path(__file__).resolve().parents[1]
 COMMIT = '59a200c6d575d595120f1cb70fea53cef0632f6b'
@@ -66,8 +67,10 @@ def execute_trial(task, trial, args, output):
                '--task-index', str(task['task_index']), '--trials', '1', '--max-steps', str(args.max_steps),
                '--user', 'llm', '--output', str(raw)]
     started = datetime.now(timezone.utc)
+    child_env = {**os.environ, 'TAU_PROGRESS_FILE': str(output / 'progress.jsonl'),
+                 'TAU_PROGRESS_LABEL': f"{task['domain']} task={task['task_index']} trial={trial}"}
     process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                               text=True, start_new_session=True)
+                               text=True, start_new_session=True, env=child_env)
     try:
         process.communicate(timeout=args.task_timeout)
         if raw.exists():
@@ -134,7 +137,8 @@ def run(args, executor=execute_trial):
               'context_window': os.environ.get('MODEL_CONTEXT_WINDOW', '8192'),
               'max_output_tokens': os.environ.get('MODEL_MAX_OUTPUT_TOKENS', '1024'),
               'turn_timeout_ms': os.environ.get('TAU_TURN_TIMEOUT_MS', '120000'),
-              'code_hash': hashlib.sha256(b''.join((ROOT / p).read_bytes() for p in ('evals/run_tau_full.py', 'evals/run_tau.py', 'evals/tau_adapter.py', 'scripts/tau-worker.ts'))).hexdigest(),
+              'worker_timeout_seconds': os.environ.get('TAU_WORKER_TIMEOUT_SECONDS', '150'),
+              'code_hash': hashlib.sha256(b''.join((ROOT / p).read_bytes() for p in ('evals/run_tau_full.py', 'evals/run_tau.py', 'evals/tau_adapter.py', 'scripts/tau-worker.ts', 'evals/progress.py'))).hexdigest(),
               'tasks': tasks}
     fingerprint = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
     output = Path(args.output).resolve()
@@ -164,6 +168,8 @@ def run(args, executor=execute_trial):
                         raise ValueError(f'续跑记录不匹配：{path.name}')
                 else:
                     print(f"[{len(records) + 1}/{len(tasks) * args.trials}] {task['domain']} task={task['task_index']} trial={trial} ...", flush=True)
+                    label = f"{task['domain']} task={task['task_index']} trial={trial}"
+                    progress('task_start', path=output / 'progress.jsonl', label=label, position=len(records) + 1, total=len(tasks) * args.trials)
                     try:
                         result = executor(task, trial, args, output)
                     except Exception as exc:
@@ -172,6 +178,7 @@ def run(args, executor=execute_trial):
                     atomic_json(path, record)
                     status = record['info'].get('pi_adapter', {}).get('status', 'error')
                     print(f"  reward={record['reward']} status={status}", flush=True)
+                    progress("task_end", path=output / "progress.jsonl", label=label, reward=record["reward"], status=status, finished=len(records) + 1, total=len(tasks) * args.trials)
                 records.append(record)
                 atomic_json(output / 'summary.json', summarize(tasks, records, args.trials, fingerprint))
     except KeyboardInterrupt:

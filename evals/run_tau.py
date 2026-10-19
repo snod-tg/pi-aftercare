@@ -13,6 +13,7 @@ from tau_bench.envs.user import BaseUserSimulationEnv, LLMUserSimulationEnv
 from tau_bench.envs import get_env
 from evals.tau_adapter import PiTauAgent, ROOT
 from evals.tau_smoke import make_smoke_env
+from evals.progress import progress
 
 class ApiUser(BaseUserSimulationEnv):
     """Same user instructions as upstream, through an independently configured HTTP API."""
@@ -20,6 +21,7 @@ class ApiUser(BaseUserSimulationEnv):
         self.messages = []
         self.tokens = 0
     def generate(self):
+        progress("user_model_request")
         base = os.environ.get('TAU_USER_BASE_URL') or os.environ['MODEL_BASE_URL']
         model = os.environ.get('TAU_USER_MODEL') or os.environ['MODEL_NAME']
         key = os.environ.get('TAU_USER_API_KEY') or os.environ.get('MODEL_API_KEY', 'local')
@@ -32,6 +34,7 @@ class ApiUser(BaseUserSimulationEnv):
         if choice['finish_reason'] != 'stop' or not text:
             raise RuntimeError('用户模拟器没有生成完整回复，请检查思考模式及输出上限')
         self.tokens += data.get('usage', {}).get('total_tokens', 0)
+        progress('user_model_response', tokens=data.get('usage', {}).get('total_tokens', 0))
         self.messages.append({'role': 'assistant', 'content': text})
         return text
     def reset(self, instruction=None):

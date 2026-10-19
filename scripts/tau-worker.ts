@@ -44,6 +44,7 @@ async function init(message: { tools: WireTool[]; wiki: string; maxSteps: number
   const original = session.agent.streamFunction;
   session.agent.streamFunction = (selected, context, options) => {
     if (done || ++modelCalls > maxSteps) throw new Error('模型请求次数已达上限');
+    emit({ type: 'progress', event: 'model_request', stats: { modelCalls, toolCalls: actions } });
     return original(selected, context, { ...options, maxTokens: connection.maxOutputTokens, maxRetries: 0 });
   };
   emit({ type: 'ready' });
@@ -55,6 +56,7 @@ async function prompt(text: string) {
   const before = session.getSessionStats().tokens.total;
   const unsubscribe = session.subscribe(event => {
     if (event.type === 'message_end' && event.message.role === 'assistant') {
+      emit({ type: 'progress', event: 'model_response', stats: { modelCalls, stopReason: event.message.stopReason } });
       answer = event.message.content.filter(p => p.type === 'text').map(p => p.text).join('');
       if (['error', 'length'].includes(event.message.stopReason)) error = event.message.errorMessage ?? `模型输出终止：${event.message.stopReason}`;
     }

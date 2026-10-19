@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 from threading import Thread
 from typing import Any
+from evals.progress import progress
 
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 from tau_bench.agents.base import Agent
@@ -17,9 +18,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class PiTauAgent(Agent):
     def __init__(self, *, project_root: Path = ROOT, model_base_url: str | None = None,
-                 model_name: str | None = None, api_key: str | None = None, timeout: float = 150):
+                 model_name: str | None = None, api_key: str | None = None, timeout: float | None = None):
         self.root = project_root
-        self.timeout = timeout
+        self.timeout = timeout if timeout is not None else float(os.environ.get("TAU_WORKER_TIMEOUT_SECONDS", "150"))
+        if not 1 <= self.timeout <= 900:
+            raise ValueError("TAU_WORKER_TIMEOUT_SECONDS must be in 1..900")
         self.env = dict(os.environ)
         for name, value in (("MODEL_BASE_URL", model_base_url), ("MODEL_NAME", model_name), ("MODEL_API_KEY", api_key)):
             if value is not None:
@@ -28,7 +31,9 @@ class PiTauAgent(Agent):
     def solve(self, env, task_index: int | None = None, max_num_steps: int = 30) -> SolveResult:
         if not 1 <= max_num_steps <= 100:
             raise ValueError("max_num_steps must be in 1..100")
+        progress("environment_reset")
         reset = env.reset(task_index=task_index)
+        progress("environment_ready")
         info = reset.info.model_dump()
         messages: list[dict[str, Any]] = [{"role": "system", "content": env.wiki}, {"role": "user", "content": reset.observation}]
         reward, terminal, steps, tokens = 0.0, False, 0, 0
@@ -64,7 +69,9 @@ class PiTauAgent(Agent):
                 if steps >= max_num_steps:
                     raise RuntimeError("environment step limit reached")
                 steps += 1
+                progress("environment_action", step=steps, action=action.name)
                 response = env.step(action)
+                progress("environment_result", step=steps, action=action.name, done=response.done, reward=response.reward)
                 reward, terminal = response.reward, response.done
                 info.update(response.info.model_dump())
                 return response
@@ -77,6 +84,9 @@ class PiTauAgent(Agent):
                     send({"type": "prompt", "text": observation})
                     while True:
                         event = receive()
+                        if event["type"] == "progress":
+                            progress(event["event"], **event.get("stats", {}))
+                            continue
                         if event["type"] == "action":
                             action = Action(**event["action"])
                             response = step(action)

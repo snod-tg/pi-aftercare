@@ -41,7 +41,10 @@ def model_api(*, wrong_item=False, unavailable=False):
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=3)
 
-def test_native_tau_env_tools_user_and_final_state_reward_through_real_pi_sdk():
+def test_native_tau_env_tools_user_and_final_state_reward_through_real_pi_sdk(tmp_path, monkeypatch):
+    log = tmp_path / "progress.jsonl"
+    monkeypatch.setenv("TAU_PROGRESS_FILE", str(log))
+    monkeypatch.setenv("TAU_PROGRESS_LABEL", "fixture task=0 trial=1")
     env = make_smoke_env()
     with model_api() as (url, requests):
         result = PiTauAgent(model_base_url=url, model_name="test-model", api_key="local", timeout=15).solve(env, task_index=0, max_num_steps=10)
@@ -52,6 +55,11 @@ def test_native_tau_env_tools_user_and_final_state_reward_through_real_pi_sdk():
     assert requests[0]["tools"][0]["function"]["name"] == "get_order_details"
     assert not any(tool["function"]["name"] in ("bash", "read", "create_aftercare_request") for tool in requests[0]["tools"])
     assert result.total_cost is None
+    events = [json.loads(line) for line in log.read_text().splitlines()]
+    assert any(event['event'] == 'model_request' for event in events)
+    assert any(event['event'] == 'environment_action' and event['action'] == 'return_delivered_order_items' for event in events)
+    assert all('content' not in event and 'kwargs' not in event for event in events)
+    assert log.with_suffix('.log').exists()
 
 def test_model_claim_of_success_cannot_override_upstream_database_reward():
     with model_api(wrong_item=True) as (url, _):
