@@ -219,3 +219,29 @@ test("unknown tools and malformed schemas are rejected by Pi before business exe
     assert.ok(api.requests[2]?.messages.some((message) => message.role === "tool" && /quantity/.test(messageText(message))));
   } finally { await conversation.close(); }
 });
+
+test("a truncated response cannot submit an approved write and the next turn can recover", async () => {
+  const state = createDemoState();
+  const api = mockApi((body, index) => {
+    if (index === 0) return { calls: [{ name: "quote_aftercare", args: { orderId: "O-1001", actions } }] };
+    if (index === 1) return { text: "请通过应用确认方案。" };
+    if (index === 2 || index === 3) {
+      const receipt = JSON.parse(messageText(body.messages.at(-1)!).split("\n")[1]!) as Record<string, string>;
+      return { calls: [{ name: "create_aftercare_request", args: receipt }], ...(index === 2 ? { finishReason: "length" } : {}) };
+    }
+    return { text: "申请已创建，等待寄回。" };
+  });
+  const conversation = await AgentConversation.create({ service: new AftercareService(state), actor: DEMO_ALICE, connection, fetch: api.transport });
+  try {
+    const first = await conversation.run("退换货");
+    const quote = first.pendingQuotes[0]!;
+    const truncated = await conversation.confirmAndContinue(quote.id);
+    assert.equal(truncated.status, "model_error");
+    assert.match(truncated.error ?? "", /输出达到上限/);
+    assert.equal(state.requests.size, 0);
+    assert.equal(truncated.toolCalls, 0);
+    const recovered = await conversation.confirmAndContinue(quote.id);
+    assert.equal(recovered.status, "completed");
+    assert.equal(state.requests.size, 1);
+  } finally { await conversation.close(); }
+});

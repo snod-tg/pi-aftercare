@@ -26,6 +26,9 @@ def failure_category(record):
     info = record['info']
     status = info.get('pi_adapter', {}).get('status', 'error')
     error = info.get('adapter_error') or ''
+    code = (info.get('error_details') or {}).get('code')
+    if code in ('fidelity_rejected', 'ungrounded_facts', 'invalid_review', 'http_error'):
+        return 'simulator_' + code
     if status == 'completed':
         return 'completed_reward_zero'
     if status == 'step_limit':

@@ -74,6 +74,7 @@ export class AgentConversation {
   private reason: StopReason | undefined;
   private modelCalls = 0;
   private toolCalls = 0;
+  private invalidGeneration = false;
   private checkpoint: (() => Promise<void>) | undefined;
 
   private constructor(
@@ -159,6 +160,7 @@ export class AgentConversation {
     const originalStream = session.agent.streamFunction;
     session.agent.streamFunction = (selectedModel, context, streamOptions) => {
       if (conversation.reason) throw new Error(conversation.reason);
+      if (conversation.invalidGeneration) throw new Error("模型输出不完整，本轮已停止");
       if (conversation.modelCalls >= limits.maxModelCalls) {
         conversation.reason = "model_limit";
         throw new Error("本轮模型请求次数已达上限");
@@ -193,6 +195,7 @@ export class AgentConversation {
 
   private beforeTool() {
     if (!this.busy || this.reason) throw new Error("当前轮次已停止，不能继续执行工具");
+    if (this.invalidGeneration) throw new DomainError("MODEL_OUTPUT_INCOMPLETE", "截断或失败的模型输出不得执行工具", 409);
     if (this.toolCalls >= this.limits.maxToolCalls) {
       this.stop("tool_limit");
       throw new Error("本轮工具执行次数已达上限");
@@ -256,6 +259,7 @@ export class AgentConversation {
     this.reason = undefined;
     this.modelCalls = 0;
     this.toolCalls = 0;
+    this.invalidGeneration = false;
     const trace: TraceEvent[] = [];
     let text = "";
     let failure: string | undefined;
@@ -275,15 +279,21 @@ export class AgentConversation {
           ...(event.toolName === "search_aftercare_policy" && !event.isError ? { data: event.result.details } : {}) });
       } else if (event.type === "message_end" && event.message.role === "assistant") {
         text = event.message.content.filter((part) => part.type === "text").map((part) => part.text).join("");
-        if (event.message.stopReason === "error") failure = event.message.errorMessage ?? "模型 API 请求失败";
-        if (event.message.stopReason === "length") failure = "模型输出达到上限，本轮结果可能不完整";
+        if (event.message.stopReason === "error") {
+          this.invalidGeneration = true;
+          failure ??= event.message.errorMessage ?? "模型 API 请求失败";
+        }
+        if (event.message.stopReason === "length") {
+          this.invalidGeneration = true;
+          failure ??= "模型输出达到上限，本轮结果可能不完整";
+        }
       }
     });
     const timer = setTimeout(() => this.stop("timeout"), this.limits.timeoutMs);
     try {
       await this.session.prompt(prompt, { expandPromptTemplates: false });
     } catch (error) {
-      failure = error instanceof Error ? error.message : "模型 API 请求失败";
+      failure ??= error instanceof Error ? error.message : "模型 API 请求失败";
     } finally {
       clearTimeout(timer);
       unsubscribe();

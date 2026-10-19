@@ -7,6 +7,7 @@ os.environ.setdefault('LITELLM_LOCAL_MODEL_COST_MAP', 'True')
 import httpx
 from tau_bench.envs.user import BaseUserSimulationEnv, LLMUserSimulationEnv
 from evals.progress import progress
+from evals.customer_facts import ungrounded_facts
 
 
 FIDELITY_RULES = """
@@ -43,7 +44,7 @@ for a lookup is allowed. They need not reveal all goals in every utterance or at
 only a final completion/STOP that drops unfinished goals is invalid. Do not reject a normal next
 request after the previous request was resolved: that is consistent with doing one thing at a time.
 Do not enforce helpfulness, disclosure, or cooperation beyond the original instruction.
-Return JSON only: {"valid": true/false, "reason": "brief correction if invalid"}."""
+Return JSON only: {"valid": true/false, "reason": "at most 25 words, at most 180 characters"}. Do not include reasoning or alternatives."""
 
 
 class UserSimulationError(RuntimeError):
@@ -59,10 +60,13 @@ class ApiUser(BaseUserSimulationEnv):
         self.diagnostics = []
         self.instruction = ''
         self.profile = os.environ.get('TAU_USER_PROFILE', 'upstream')
-        if self.profile not in ('upstream', 'faithful-v1'):
-            raise ValueError('TAU_USER_PROFILE must be upstream or faithful-v1')
+        if self.profile not in ('upstream', 'faithful-v1', 'faithful-v2'):
+            raise ValueError('TAU_USER_PROFILE must be upstream, faithful-v1 or faithful-v2')
+        self.review_mode = os.environ.get('TAU_USER_REVIEW_MODE', 'audit' if self.profile == 'faithful-v2' else 'enforce')
+        if self.review_mode not in ('audit', 'enforce'):
+            raise ValueError('TAU_USER_REVIEW_MODE must be audit or enforce')
         self.max_tokens = int(os.environ.get('TAU_USER_MAX_OUTPUT_TOKENS', '512'))
-        self.max_attempts = int(os.environ.get('TAU_USER_MAX_ATTEMPTS', '2' if self.profile == 'faithful-v1' else '1'))
+        self.max_attempts = int(os.environ.get('TAU_USER_MAX_ATTEMPTS', '2' if self.profile.startswith('faithful-') else '1'))
         if not 1 <= self.max_tokens <= 8192 or not 1 <= self.max_attempts <= 3:
             raise ValueError('Invalid customer token or retry limit')
         self.transport = transport
@@ -75,7 +79,7 @@ class ApiUser(BaseUserSimulationEnv):
         if review:
             body['temperature'] = 0
             body['response_format'] = {'type': 'json_schema', 'json_schema': {'name': 'customer_review', 'strict': True,
-                'schema': {'type': 'object', 'properties': {'valid': {'type': 'boolean'}, 'reason': {'type': 'string'}},
+                'schema': {'type': 'object', 'properties': {'valid': {'type': 'boolean'}, 'reason': {'type': 'string', 'maxLength': 180}},
                            'required': ['valid', 'reason'], 'additionalProperties': False}}}
         progress('user_model_request', purpose=purpose, attempt=attempt)
         with httpx.Client(timeout=120, trust_env=False, **({'transport': self.transport} if self.transport is not None else {})) as client:
@@ -111,22 +115,37 @@ class ApiUser(BaseUserSimulationEnv):
                 prompt[0]['content'] += '\nPrivate repair instruction: ' + feedback
             try:
                 text = self._request(prompt, purpose='customer', attempt=attempt)
-                if self.profile == 'faithful-v1':
+                if self.profile.startswith('faithful-'):
+                    if '###STOP###' in text:
+                        # Upstream terminates on this literal substring too. Normalize only an
+                        # existing marker; never infer completion from a goodbye or business state.
+                        text = '###STOP###'
+                    if self.profile == 'faithful-v2':
+                        unknown = ungrounded_facts(text, self.instruction, self.messages)
+                        if unknown:
+                            self.diagnostics.append({'purpose': 'fact_rejection', 'attempt': attempt, 'unknown_facts': unknown})
+                            progress('user_fact_rejected', attempt=attempt, count=len(unknown))
+                            raise UserSimulationError('顾客回复包含无来源的具体信息', {'code': 'ungrounded_facts', 'facts': unknown})
                     review_input = {'hidden_user_instruction': self.instruction, 'conversation': self.messages[1:], 'candidate': text}
-                    verdict_text = self._request([{'role': 'system', 'content': REVIEW_RULES},
-                        {'role': 'user', 'content': json.dumps(review_input, ensure_ascii=False)}], purpose='fidelity_review', attempt=attempt, review=True)
                     try:
-                        verdict = json.loads(verdict_text)
-                        if type(verdict.get('valid')) is not bool or not isinstance(verdict.get('reason'), str):
-                            raise ValueError('Invalid review schema')
-                    except (ValueError, AttributeError) as exc:
-                        raise UserSimulationError('顾客忠实性审查返回格式错误', {'code': 'invalid_review'}) from exc
-                    if '###STOP###' in text and text != '###STOP###':
-                        verdict = {'valid': False, 'reason': 'When finished, output only ###STOP###, with no other words.'}
-                    if not verdict['valid']:
-                        progress('user_fidelity_rejected', attempt=attempt)
-                        self.diagnostics.append({'purpose': 'fidelity_rejection', 'attempt': attempt, 'reason': verdict['reason'][:500]})
-                        raise UserSimulationError('顾客回复未通过任务忠实性审查', {'code': 'fidelity_rejected', 'reason': verdict['reason'][:500]})
+                        verdict_text = self._request([{'role': 'system', 'content': REVIEW_RULES},
+                            {'role': 'user', 'content': json.dumps(review_input, ensure_ascii=False)}], purpose='fidelity_review', attempt=attempt, review=True)
+                        try:
+                            verdict = json.loads(verdict_text)
+                            if type(verdict.get('valid')) is not bool or not isinstance(verdict.get('reason'), str):
+                                raise ValueError('Invalid review schema')
+                        except (ValueError, AttributeError) as exc:
+                            raise UserSimulationError('顾客忠实性审查返回格式错误', {'code': 'invalid_review'}) from exc
+                        if not verdict['valid']:
+                            progress('user_fidelity_rejected', attempt=attempt, mode=self.review_mode)
+                            self.diagnostics.append({'purpose': 'fidelity_rejection', 'attempt': attempt, 'reason': verdict['reason'][:500], 'mode': self.review_mode})
+                            if self.review_mode == 'enforce':
+                                raise UserSimulationError('顾客回复未通过任务忠实性审查', {'code': 'fidelity_rejected', 'reason': verdict['reason'][:500]})
+                    except (UserSimulationError, httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
+                        if self.review_mode == 'enforce':
+                            raise
+                        # An unreliable reviewer must not rewrite a valid customer or decide reward.
+                        self.diagnostics.append({'purpose': 'review_unavailable', 'attempt': attempt, 'error_type': type(exc).__name__})
                 self.messages.append({'role': 'assistant', 'content': text})
                 return text
             except UserSimulationError as exc:
@@ -139,7 +158,7 @@ class ApiUser(BaseUserSimulationEnv):
         self.diagnostics = []
         self.instruction = instruction or ''
         prompt = LLMUserSimulationEnv.build_system_prompt(self, instruction)
-        if self.profile == 'faithful-v1':
+        if self.profile.startswith('faithful-'):
             prompt += FIDELITY_RULES
         self.messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': 'Hi! How can I help you today?'}]
         return self.generate()

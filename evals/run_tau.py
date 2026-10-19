@@ -49,6 +49,7 @@ def main():
         if env is not None and isinstance(env.user, ApiUser):
             result['info']['user_tokens'] = env.user.tokens
             result['info']['user_profile'] = env.user.profile
+            result['info']['user_review_mode'] = env.user.review_mode
             result['info']['user_diagnostics'] = env.user.diagnostics
         results.append({'trial': trial, **result})
         print(f"trial={trial} reward={result['reward']} status={result['info'].get('pi_adapter', {}).get('status', 'error')}", flush=True)

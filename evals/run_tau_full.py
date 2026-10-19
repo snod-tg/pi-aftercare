@@ -179,7 +179,7 @@ def run(args, executor=execute_trial):
     base = endpoint('MODEL_BASE_URL')
     agent_profile = os.environ.get('TAU_AGENT_PROFILE', 'baseline')
     user_profile = os.environ.get('TAU_USER_PROFILE', 'upstream')
-    if agent_profile not in ('baseline', 'careful-v1') or user_profile not in ('upstream', 'faithful-v1'):
+    if agent_profile not in ('baseline', 'careful-v1') or user_profile not in ('upstream', 'faithful-v1', 'faithful-v2'):
         raise ValueError('Unknown agent/customer experiment profile')
     config = {'upstream_commit': COMMIT, 'domains': domains, 'split': args.split, 'trials': args.trials,
               'task_start': start, 'task_stop': stop, 'selected_task_ids': sorted(selected_ids) if selected_ids else None,
@@ -193,12 +193,13 @@ def run(args, executor=execute_trial):
               'model_service_description': os.environ.get('MODEL_SERVICE_DESCRIPTION', 'unknown'),
               'user_max_output_tokens': int(os.environ.get('TAU_USER_MAX_OUTPUT_TOKENS', '512')),
               'agent_profile': agent_profile, 'user_profile': user_profile,
-              'user_max_attempts': int(os.environ.get('TAU_USER_MAX_ATTEMPTS', '2' if user_profile == 'faithful-v1' else '1')),
+              'user_review_mode': os.environ.get('TAU_USER_REVIEW_MODE', 'audit' if user_profile == 'faithful-v2' else 'enforce'),
+              'user_max_attempts': int(os.environ.get('TAU_USER_MAX_ATTEMPTS', '2' if user_profile.startswith('faithful-') else '1')),
               'max_model_calls': int(os.environ.get('TAU_MAX_MODEL_CALLS', str(args.max_steps * (2 if agent_profile == 'careful-v1' else 1)))),
               'max_output_tokens': os.environ.get('MODEL_MAX_OUTPUT_TOKENS', '1024'),
               'turn_timeout_ms': os.environ.get('TAU_TURN_TIMEOUT_MS', '120000'),
               'worker_timeout_seconds': os.environ.get('TAU_WORKER_TIMEOUT_SECONDS', '150'),
-              'code_hash': hashlib.sha256(b''.join((ROOT / p).read_bytes() for p in ('evals/run_tau_full.py', 'evals/run_tau.py', 'evals/tau_adapter.py', 'scripts/tau-worker.ts', 'evals/progress.py', 'evals/api_user.py', 'evals/action_guard.py', 'src/agent/reliability.ts'))).hexdigest(),
+              'code_hash': hashlib.sha256(b''.join((ROOT / p).read_bytes() for p in ('evals/run_tau_full.py', 'evals/run_tau.py', 'evals/tau_adapter.py', 'scripts/tau-worker.ts', 'evals/progress.py', 'evals/api_user.py', 'evals/action_guard.py', 'evals/customer_facts.py', 'src/agent/reliability.ts'))).hexdigest(),
               'tasks': tasks}
     fingerprint = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
     output = Path(args.output).resolve()

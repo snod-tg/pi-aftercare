@@ -66,11 +66,11 @@ def test_truncation_is_observable_bounded_and_not_added_to_history(monkeypatch):
     assert user.tokens == 40
 
 
-def test_invalid_review_fails_closed_and_mixed_stop_is_repaired(monkeypatch):
+def test_invalid_review_fails_closed_and_existing_stop_is_normalized(monkeypatch):
     user, calls = simulator(monkeypatch, [('Thanks ###STOP###', 'stop'), ('{"valid":true,"reason":""}', 'stop')], attempts='1')
-    with pytest.raises(UserSimulationError, match='忠实性'):
-        user.reset('Return an item')
-    assert len(user.messages) == 2
+    assert user.reset('Return an item') == '###STOP###'
+    assert json.loads(calls[1]['messages'][1]['content'])['candidate'] == '###STOP###'
+    assert len(user.messages) == 3
     user, calls = simulator(monkeypatch, [('Hello', 'stop'), ('[]', 'stop')], attempts='1')
     with pytest.raises(UserSimulationError, match='格式错误'):
         user.reset('Return an item')
@@ -91,3 +91,23 @@ def test_http_failure_keeps_status_diagnostic_and_redacts_key(monkeypatch):
     assert caught.value.details['status'] == 400
     assert 'test-secret-key' not in json.dumps(user.diagnostics)
     assert 'Only one leading system message' in caught.value.details['response_excerpt']
+
+
+def test_faithful_v2_uses_fact_evidence_and_keeps_unreliable_review_as_diagnostic(monkeypatch):
+    user, calls = simulator(monkeypatch, [('Ship to 123 Central Park West.', 'stop'),
+        ('Please look up my NYC address in my other order.', 'stop'),
+        ('{"valid":false,"reason":"Customer must provide all order IDs."}', 'stop')], profile='faithful-v2')
+    reply = user.reset('Use my NYC address from my other order. I do not know it.')
+    assert reply == 'Please look up my NYC address in my other order.'
+    assert len(calls) == 3
+    assert user.diagnostics[1]['purpose'] == 'fact_rejection'
+    assert user.diagnostics[-1]['purpose'] == 'fidelity_rejection'
+    assert user.diagnostics[-1]['mode'] == 'audit'
+    assert all('123 Central Park West' not in m['content'] for m in user.messages)
+
+
+def test_audit_does_not_synthesize_stop_or_replace_a_valid_customer(monkeypatch):
+    user, calls = simulator(monkeypatch, [('I still need help exchanging the other item.', 'stop'),
+        ('{"valid":false,"reason":"Say STOP now."}', 'stop')], profile='faithful-v2')
+    assert user.reset('Exchange two different items.') == 'I still need help exchanging the other item.'
+    assert '###STOP###' not in user.messages[-1]['content']
