@@ -193,6 +193,8 @@ def run(args, executor=execute_trial):
               'model_service_description': os.environ.get('MODEL_SERVICE_DESCRIPTION', 'unknown'),
               'user_max_output_tokens': int(os.environ.get('TAU_USER_MAX_OUTPUT_TOKENS', '512')),
               'agent_profile': agent_profile, 'user_profile': user_profile,
+              'truncation_retries': int(os.environ.get('TAU_TRUNCATION_RETRIES', '1' if agent_profile == 'careful-v1' else '0')),
+              'user_fact_fallback': os.environ.get('TAU_USER_FACT_FALLBACK', 'clarify' if user_profile == 'faithful-v2' and os.environ.get('TAU_USER_REVIEW_MODE', 'audit') == 'audit' else 'error'),
               'user_review_mode': os.environ.get('TAU_USER_REVIEW_MODE', 'audit' if user_profile == 'faithful-v2' else 'enforce'),
               'user_max_attempts': int(os.environ.get('TAU_USER_MAX_ATTEMPTS', '2' if user_profile.startswith('faithful-') else '1')),
               'max_model_calls': int(os.environ.get('TAU_MAX_MODEL_CALLS', str(args.max_steps * (2 if agent_profile == 'careful-v1' else 1)))),

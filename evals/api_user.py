@@ -69,6 +69,9 @@ class ApiUser(BaseUserSimulationEnv):
         self.max_attempts = int(os.environ.get('TAU_USER_MAX_ATTEMPTS', '2' if self.profile.startswith('faithful-') else '1'))
         if not 1 <= self.max_tokens <= 8192 or not 1 <= self.max_attempts <= 3:
             raise ValueError('Invalid customer token or retry limit')
+        self.fact_fallback = os.environ.get('TAU_USER_FACT_FALLBACK', 'clarify' if self.profile == 'faithful-v2' and self.review_mode == 'audit' else 'error')
+        if self.fact_fallback not in ('clarify', 'error'):
+            raise ValueError('TAU_USER_FACT_FALLBACK must be clarify or error')
         self.transport = transport
 
     def _request(self, messages, *, purpose, attempt, review=False):
@@ -150,7 +153,14 @@ class ApiUser(BaseUserSimulationEnv):
                 return text
             except UserSimulationError as exc:
                 last_error = exc
-                feedback = json.dumps(exc.details, ensure_ascii=False) + '\nRegenerate one faithful, complete, concise customer utterance. Do not mention this repair.'
+                feedback = 'The previous candidate was rejected. Unknown fact values below are FORBIDDEN examples, not facts to copy. If you do not know a requested identifier, say you do not know it and ask for another lookup method.\n' + json.dumps(exc.details, ensure_ascii=False) + '\nRegenerate one faithful, complete, concise customer utterance. Do not mention this repair.'
+        if (self.profile == 'faithful-v2' and self.fact_fallback == 'clarify' and
+                last_error.details.get('code') == 'ungrounded_facts'):
+            text = "I don't have that information. Please ask for a different identifying detail or look it up using information from our conversation."
+            self.diagnostics.append({'purpose': 'fact_fallback', 'code': 'clarify_unknown_information'})
+            progress('user_fact_fallback', code='clarify_unknown_information')
+            self.messages.append({'role': 'assistant', 'content': text})
+            return text
         raise last_error
 
     def reset(self, instruction=None):
@@ -160,6 +170,8 @@ class ApiUser(BaseUserSimulationEnv):
         prompt = LLMUserSimulationEnv.build_system_prompt(self, instruction)
         if self.profile.startswith('faithful-'):
             prompt += FIDELITY_RULES
+            if self.profile == 'faithful-v2':
+                prompt += '\nPrivate task reminder (preserve every goal; do not invent details):\n' + self.instruction
         self.messages = [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': 'Hi! How can I help you today?'}]
         return self.generate()
 

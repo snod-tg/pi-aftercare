@@ -17,6 +17,9 @@ from tau_bench.types import Action, SolveResult
 
 ROOT = Path(__file__).resolve().parents[1]
 
+class EnvironmentStepLimit(Exception):
+    pass
+
 class PiTauAgent(Agent):
     def __init__(self, *, project_root: Path = ROOT, model_base_url: str | None = None,
                  model_name: str | None = None, api_key: str | None = None, timeout: float | None = None):
@@ -75,7 +78,7 @@ class PiTauAgent(Agent):
             def step(action: Action):
                 nonlocal steps, info, reward, terminal
                 if steps >= max_num_steps:
-                    raise RuntimeError("environment step limit reached")
+                    raise EnvironmentStepLimit("environment step limit reached")
                 steps += 1
                 progress("environment_action", step=steps, action=action.name)
                 rejection = guard.validate(action) if guard else None
@@ -113,10 +116,12 @@ class PiTauAgent(Agent):
                             messages.append({"role": "assistant", "tool_calls": [{"id": event["id"], "type": "function", "function": {"name": action.name, "arguments": json.dumps(action.kwargs)}}]})
                             response = step(action)
                             messages.append({"role": "tool", "tool_call_id": event["id"], "name": action.name, "content": response.observation})
-                            send({"type": "observation", "id": event["id"], "observation": response.observation, "done": response.done})
+                            send({"type": "observation", "id": event["id"], "observation": response.observation, "done": response.done, "exhausted": steps >= max_num_steps and not terminal})
                         elif event["type"] == "turn":
                             worker_stats = {k: event[k] for k in ("modelCalls", "toolCalls")}
                             tokens += event["tokens"]
+                            if steps >= max_num_steps and not terminal:
+                                break
                             if event.get("error"):
                                 info['worker_error_code'] = event.get('errorCode')
                                 raise RuntimeError(event["error"])
@@ -132,6 +137,8 @@ class PiTauAgent(Agent):
                         else:
                             raise RuntimeError("unexpected Pi worker event")
                 status = "completed" if terminal else "step_limit"
+            except EnvironmentStepLimit:
+                status = "step_limit"
             except Exception as exc:
                 status = "error"
                 info["adapter_error"] = str(exc)[:1000]

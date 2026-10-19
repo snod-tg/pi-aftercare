@@ -7,7 +7,7 @@ from evals.tau_adapter import PiTauAgent
 from evals.tau_smoke import make_smoke_env
 
 @contextmanager
-def model_api(*, wrong_item=False, unavailable=False, finish_length_at=None):
+def model_api(*, wrong_item=False, unavailable=False, finish_length_at=None, recover_text=False):
     requests = []
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -17,7 +17,8 @@ def model_api(*, wrong_item=False, unavailable=False, finish_length_at=None):
             requests.append(body)
             if unavailable:
                 self.send_response(503); self.end_headers(); return
-            index = len(requests) - 1
+            actual_index = len(requests) - 1
+            index = actual_index - 1 if recover_text and actual_index >= 2 else actual_index
             if index == 0:
                 delta = {"tool_calls": [{"index": 0, "id": "read-1", "type": "function", "function": {"name": "get_order_details", "arguments": json.dumps({"order_id": "#W1000000"})}}]}
             elif index == 1:
@@ -29,7 +30,7 @@ def model_api(*, wrong_item=False, unavailable=False, finish_length_at=None):
             base = {"id": f"response-{index}", "object": "chat.completion.chunk", "created": 1, "model": body["model"]}
             chunks = [
                 {**base, "choices": [{"index": 0, "delta": {"role": "assistant", **delta}, "finish_reason": None}]},
-                {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "length" if index == finish_length_at else "tool_calls" if "tool_calls" in delta else "stop"}]},
+                {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "length" if actual_index == finish_length_at else "tool_calls" if "tool_calls" in delta else "stop"}]},
                 {**base, "choices": [], "usage": {"prompt_tokens": 50, "completion_tokens": 10, "total_tokens": 60}},
             ]
             data = ("".join("data: " + json.dumps(chunk) + "\n\n" for chunk in chunks) + "data: [DONE]\n\n").encode()
@@ -126,3 +127,29 @@ def test_model_call_limit_is_independent_and_counts_only_issued_requests(monkeyp
     assert len(requests) == 1
     assert result.info['pi_adapter']['modelCalls'] == 1
     assert result.info['worker_error_code'] == 'model_call_limit'
+
+
+def test_read_only_truncation_can_retry_once_without_replaying_tools(monkeypatch):
+    monkeypatch.setenv('TAU_AGENT_PROFILE', 'careful-v1')
+    with model_api(finish_length_at=1, recover_text=True) as (url, requests):
+        result = PiTauAgent(model_base_url=url, model_name='test-model', api_key='local', timeout=15).solve(make_smoke_env(), task_index=0, max_num_steps=10)
+    assert result.reward == 1, result.info
+    assert len(requests) == 5
+    assert sum(m.get('name') == 'get_order_details' for m in result.messages) == 1
+    assert any(d['stopReason'] == 'length' for d in result.info['model_diagnostics'])
+
+
+def test_truncation_after_attempted_write_is_never_retried(monkeypatch):
+    monkeypatch.setenv('TAU_AGENT_PROFILE', 'careful-v1')
+    with model_api(finish_length_at=3) as (url, requests):
+        result = PiTauAgent(model_base_url=url, model_name='test-model', api_key='local', timeout=15).solve(make_smoke_env(), task_index=0, max_num_steps=10)
+    assert result.info['pi_adapter']['status'] == 'error'
+    assert len(requests) == 4
+
+
+def test_exact_environment_step_boundary_stops_without_extra_model_request():
+    with model_api() as (url, requests):
+        result = PiTauAgent(model_base_url=url, model_name='test-model', api_key='local', timeout=15).solve(make_smoke_env(), task_index=0, max_num_steps=1)
+    assert result.info['pi_adapter']['status'] == 'step_limit'
+    assert len(requests) == 1
+    assert result.info['pi_adapter']['environment_steps'] == 1

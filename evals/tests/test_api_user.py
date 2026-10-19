@@ -111,3 +111,14 @@ def test_audit_does_not_synthesize_stop_or_replace_a_valid_customer(monkeypatch)
         ('{"valid":false,"reason":"Say STOP now."}', 'stop')], profile='faithful-v2')
     assert user.reset('Exchange two different items.') == 'I still need help exchanging the other item.'
     assert '###STOP###' not in user.messages[-1]['content']
+
+
+def test_repeated_ungrounded_facts_use_a_recorded_nonterminal_clarification(monkeypatch):
+    user, calls = simulator(monkeypatch, [('My email is invented@example.com', 'stop'),
+        ('Use anotherfake@example.com', 'stop')], profile='faithful-v2')
+    reply = user.reset('My name is Yusuf and my ZIP is 19122. Exchange my keyboard.')
+    assert len(calls) == 2
+    assert "don't have that information" in reply
+    assert '###STOP###' not in reply and '@' not in reply
+    assert user.diagnostics[-1]['purpose'] == 'fact_fallback'
+    assert user.messages[-1]['content'] == reply
