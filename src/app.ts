@@ -7,8 +7,9 @@ import type { AftercareBackend } from "./domain/backend.js";
 import { DomainError } from "./domain/errors.js";
 import { registerRoutes } from "./http/routes.js";
 import { registerWebRoutes, type ConversationFactory } from "./http/web.js";
+import type { SessionStore } from "./storage/sessions.js";
 
-export function buildApp(options: { service?: AftercareBackend; logger?: boolean; persistent?: boolean; conversationFactory?: ConversationFactory } = {}) {
+export function buildApp(options: { service?: AftercareBackend; logger?: boolean; persistent?: boolean; conversationFactory?: ConversationFactory; sessionStore?: SessionStore } = {}) {
   const app = Fastify({
     logger: options.logger ?? true,
     ajv: { customOptions: { removeAdditional: false, coerceTypes: false } },

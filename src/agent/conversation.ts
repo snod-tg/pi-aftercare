@@ -1,5 +1,5 @@
 import type { ToolFaultInjector } from "../evaluation/faults.js";
-import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type AgentSession, type AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { AftercareBackend, OperationResult } from "../domain/backend.js";
 import { DomainError } from "../domain/errors.js";
 import type { Actor, Quote } from "../domain/types.js";
@@ -29,6 +29,17 @@ export interface ConfirmationReceipt {
   quoteId: string;
   confirmationId: string;
   idempotencyKey: string;
+}
+
+export interface ConversationCheckpoint {
+  version: 1;
+  entries: NonNullable<Parameters<typeof SessionManager.inMemory>[2]>;
+  quotes: Quote[];
+  receipts: ConfirmationReceipt[];
+}
+export interface ConversationRestore {
+  checkpoint?: ConversationCheckpoint;
+  onCheckpoint?: () => Promise<void>;
 }
 
 export interface TraceEvent {
@@ -63,6 +74,7 @@ export class AgentConversation {
   private reason: StopReason | undefined;
   private modelCalls = 0;
   private toolCalls = 0;
+  private checkpoint: (() => Promise<void>) | undefined;
 
   private constructor(
     private readonly service: AftercareBackend,
@@ -80,21 +92,53 @@ export class AgentConversation {
     restorePendingQuotes?: boolean;
     faults?: ToolFaultInjector;
     confirmationMode?: "web" | "cli";
+    checkpoint?: ConversationCheckpoint;
+    onCheckpoint?: () => Promise<void>;
   }) {
     const limits = { ...readRunLimits({}), ...options.limits };
     if (Object.values(limits).some((value) => !Number.isSafeInteger(value) || value < 1)) {
       throw new Error("运行限制必须是正整数");
     }
     const conversation = new AgentConversation(options.service, Object.freeze({ ...options.actor }), options.connection, limits);
+    conversation.checkpoint = options.onCheckpoint;
+    const manager = SessionManager.inMemory(process.cwd(), undefined, options.checkpoint?.entries);
+    if (options.checkpoint) {
+      if (options.checkpoint.version !== 1) throw new Error("不支持的会话记录版本");
+      for (const quote of options.checkpoint.quotes) {
+        if (quote.merchantId !== options.actor.merchantId || quote.customerId !== options.actor.customerId) throw new Error("会话方案归属不匹配");
+        conversation.quotes.set(quote.id, structuredClone(quote));
+      }
+      for (const receipt of options.checkpoint.receipts) {
+        conversation.receipts.set(receipt.quoteId, { ...receipt });
+      }
+      // A crash can leave an assistant tool call without its result. Record uncertainty;
+      // never execute that old call automatically when resuming the transcript.
+      const messages = manager.buildSessionContext().messages;
+      const results = new Set(messages.filter(m => m.role === 'toolResult').map(m => m.toolCallId));
+      for (const message of messages) if (message.role === 'assistant') {
+        for (const part of message.content) if (part.type === 'toolCall' && !results.has(part.id)) {
+          manager.appendMessage({ role: 'toolResult', toolCallId: part.id, toolName: part.name,
+            content: [{ type: 'text', text: 'INTERRUPTED_TOOL: 上轮处理意外中断，工具结果未知；不要假定成功或重放旧写操作。先重新查询订单、库存和实际申请状态；已有幂等键必须复用。' }],
+            isError: true, timestamp: Date.now() });
+          results.add(part.id);
+        }
+      }
+    }
     const { modelRuntime, model } = await createConnectedModel(options.connection);
     const { session } = await createAftercareSession({
       service: options.service,
       actor: options.actor,
       modelRuntime,
       model,
+      sessionManager: manager,
       ...(options.confirmationMode ? { confirmationMode: options.confirmationMode } : {}),
       toolHooks: {
-        aroundTool: (name, operation) => options.faults ? options.faults.run(name, operation) : Promise.resolve(operation()),
+        aroundTool: async (name, operation) => {
+          await conversation.checkpoint?.();
+          const result = await (options.faults ? options.faults.run(name, operation) : operation());
+          await conversation.checkpoint?.();
+          return result;
+        },
         beforeTool: () => conversation.beforeTool(),
         onQuote: (quote) => {
           for (const [id, old] of conversation.quotes) {
@@ -124,10 +168,27 @@ export class AgentConversation {
         ...streamOptions,
         maxTokens: options.connection.maxOutputTokens,
         maxRetries: 0,
-        ...(options.fetch ? { fetch: options.fetch } : {}),
+        ...(options.onCheckpoint ? { fetch: async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+          // The SDK has appended the preceding user/tool messages by this boundary.
+          // Save them before issuing the next model request.
+          await conversation.checkpoint?.();
+          return (options.fetch ?? globalThis.fetch)(input, init);
+        } } : options.fetch ? { fetch: options.fetch } : {}),
       });
     };
     return conversation;
+  }
+
+  exportCheckpoint(): ConversationCheckpoint {
+    const manager = this.session.sessionManager;
+    const header = manager.getHeader();
+    if (!header) throw new Error("Pi 会话记录缺少头信息");
+    const checkpoint: ConversationCheckpoint = structuredClone({ version: 1, entries: [header, ...manager.getBranch()],
+      quotes: [...this.quotes.values()], receipts: [...this.receipts.values()] });
+    // A provider's error text may echo credentials; never persist the configured key.
+    return !this.connection.apiKey || this.connection.apiKey === 'local' ? checkpoint
+      : JSON.parse(JSON.stringify(checkpoint, (_key, value: unknown) => typeof value === 'string'
+        ? value.replaceAll(this.connection.apiKey, '[redacted]') : value)) as ConversationCheckpoint;
   }
 
   private beforeTool() {
@@ -162,6 +223,8 @@ export class AgentConversation {
     const confirmation = await this.service.confirmQuote(this.actor, quoteId);
     const receipt = { quoteId, confirmationId: confirmation.id, idempotencyKey: confirmation.idempotencyKey };
     this.receipts.set(quoteId, receipt);
+    // Persist the stable approval before any model is allowed to submit a write.
+    await this.checkpoint?.();
     return { ...receipt };
   }
 

@@ -1465,3 +1465,21 @@ button:not(:disabled):active{
     transition:none!important
   }
 }
+.history-label { display: flex; justify-content: space-between; font-size: 10px; color: #8a9a79; margin: 28px 10px 12px; }
+.history-label span { font-size: 9px; }
+.history-list { max-height: 29vh; overflow: auto; scrollbar-width: thin; }
+.history-list button { width: 100%; background: transparent; display: flex; gap: 9px; align-items: flex-start; color: #6f825e; text-align: left; padding: 10px; border-radius: 7px; margin-bottom: 4px; }
+.history-list button:hover, .history-list button.selected { background: #e4ebdd; }
+.history-list button > svg { margin-top: 2px; }
+.history-list button > span { min-width: 0; flex: 1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-list small { display: block; font-size: 9px; color: #94a287; margin-top: 5px; }
+@media (max-width: 920px) { .history-label, .history-list { display: none; } }
+@media (max-height: 800px) and (min-width: 721px) {
+  .welcome { margin: 24px auto 16px; }
+  .welcome-symbol { display: none; }
+  .welcome h2 { font-size: 22px; margin-bottom: 10px; }
+  .welcome > p { font-size: 11px; line-height: 1.8; margin-bottom: 18px; }
+  .suggestions { gap: 7px; }
+  .suggestions button { padding: 10px 13px; }
+  .welcome-hint { margin-top: 16px; font-size: 10px; }
+}

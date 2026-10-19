@@ -33,12 +33,14 @@ export async function createAftercareSession(options: {
   model?: NonNullable<CreateAgentSessionOptions["model"]>;
   toolHooks?: ToolHooks;
   confirmationMode?: "web" | "cli";
+  sessionManager?: SessionManager;
 }) {
   const tools = createAftercareTools(options.service, options.actor, options.toolHooks);
   return createIsolatedToolSession({
     modelRuntime: options.modelRuntime,
     ...(options.model ? { model: options.model } : {}),
     tools,
+    ...(options.sessionManager ? { sessionManager: options.sessionManager } : {}),
     systemPrompt: options.confirmationMode === "web"
       ? systemPrompt.replace("当前终端的确认方式是 /confirm <实际方案ID>，必须给出工具返回的真实ID；不要让用户回复“确认”或“同意”代替此命令。", "当前网页的确认方式是点击方案卡片上的“确认并提交”按钮。告知用户通过该按钮确认，不要要求输入终端命令，也不要将聊天中的同意作为确认。")
       : systemPrompt,
@@ -50,6 +52,7 @@ export function createIsolatedToolSession(options: {
   model?: NonNullable<CreateAgentSessionOptions["model"]>;
   tools: ToolDefinition[];
   systemPrompt: string;
+  sessionManager?: SessionManager;
 }) {
   const tools = options.tools;
   // Own all resources explicitly instead of loading personal coding tools or extensions.
@@ -74,7 +77,7 @@ export function createIsolatedToolSession(options: {
     resourceLoader,
     customTools: tools,
     tools: tools.map((tool) => tool.name),
-    sessionManager: SessionManager.inMemory(),
+    sessionManager: options.sessionManager ?? SessionManager.inMemory(),
     settingsManager: SettingsManager.inMemory({
       retry: { enabled: false, provider: { maxRetries: 0 } },
       cacheWarming: "off",
