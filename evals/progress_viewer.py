@@ -44,18 +44,23 @@ def snapshot(directory):
     summary = read_json(directory / 'summary.json')
     planned = summary.get('planned_runs', len(config.get('tasks', [])) * config.get('trials', 1))
     events = []
-    for line in tail(directory / 'progress.jsonl').splitlines():
+    for line in tail(directory / 'progress.jsonl', limit=16 * 1024 * 1024).splitlines():
         try:
             events.append(json.loads(line))
         except ValueError:
             continue
-    starts = [event for event in events if event.get('event') == 'task_start']
-    last = events[-1] if events else {}
-    current = starts[-1].get('task', '') if starts else ''
-    if last:
-        current += ' · ' + str(last.get('event', ''))
-        if 'action' in last:
-            current += ' · ' + str(last['action'])
+    active = {}
+    for event in events:
+        label = event.get('task', '')
+        if event.get('event') == 'task_start':
+            active[label] = event
+        elif event.get('event') == 'task_end':
+            active.pop(label, None)
+        elif label in active:
+            active[label] = event
+    current = '；'.join(label + ' · ' + str(event.get('event', '')) +
+                        (' · ' + str(event['action']) if 'action' in event else '')
+                        for label, event in active.items())
     alive = False
     try:
         pid = int((directory.parent / (directory.name + '.pid')).read_text())
@@ -70,6 +75,7 @@ def snapshot(directory):
             'errors': statuses.get('error', 0) + statuses.get('timeout', 0),
             'agent': config.get('model', '—'), 'agent_url': config.get('model_base_url', ''),
             'user': config.get('user_model', '—'), 'user_url': config.get('user_base_url', ''),
+            'active_tasks': list(active),
             'context': config.get('context_window', '—'), 'current': current,
             'service_slots': config.get('model_service_slots', '—'),
             'evaluation_concurrency': config.get('evaluation_concurrency', 1),

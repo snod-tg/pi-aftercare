@@ -85,3 +85,12 @@ Python 依赖在项目 `.venv` 内。tau 为可选依赖，常规业务不需要
 官方任务可用 --task-start/--task-stop 选择每个域的索引范围（包含起点，不含终点）；默认范围仍为全量。双4B独立API配置及前3项复测见 [双4B评测](../docs/双4B评测.md)。
 
 当前运行改为单4B服务，4个模型槽位、每槽32K，评测调度仍为1，见 [单4B顺序全量评测](../docs/单4B顺序全量评测.md)。历史配置和结果保留，各轮不混合计分。
+
+
+### 四项并行运行
+
+```bash
+.venv/bin/python -m evals.run_tau_full --domain all --split test --trials 1 --concurrency 4 --output .data/evals/tau-full-vllm-4
+```
+
+`--concurrency` 默认1；四项并行需显式设为4。每个 trial 独立子进程，历史与业务环境隔离，结果逐项保存；进度页面展示全部活动任务。模型服务容量与上下文需独立配置（当前远端4B为4路、每路32768 token）。中断不把未完成项计成失败，原命令加 `--resume` 续跑；配置与代码指纹必须一致。服务器与当前完整运行命令见 `docs/服务器模型部署与测速-2026-10-19.md`。

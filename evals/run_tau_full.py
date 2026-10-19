@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # 运行指令（在 pi-aftercare 项目目录，模型 API 需先独立启动）：
+# 四任务并发全量：.venv/bin/python -m evals.run_tau_full --domain all --split test --trials 1 --concurrency 4 --output .data/evals/tau-full-vllm-4
 # 全量 test 集：.venv/bin/python -m evals.run_tau_full --domain all --split test --trials 1
 # 仅零售全量：.venv/bin/python -m evals.run_tau_full --domain retail --split test --trials 1
 # 中断后续跑：.venv/bin/python -m evals.run_tau_full --domain all --split test --trials 1 --resume
@@ -7,10 +8,13 @@
 # 3 次可靠性评测：.venv/bin/python -m evals.run_tau_full --domain all --split test --trials 3 --output .data/evals/tau-full-3
 # 先测零售前3项：.venv/bin/python -m evals.run_tau_full --domain retail --split test --task-stop 3 --output .data/evals/tau-pilot
 # 首次安装可选依赖：uv sync --extra tau --frozen --cache-dir .cache/uv
-"""Sequential full-suite runner: upstream tasks, per-trial checkpoints, resume and summaries."""
+"""Bounded parallel full-suite runner: upstream tasks, per-trial checkpoints, resume and summaries."""
 from __future__ import annotations
 import argparse
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+from threading import Event
+import time
 from datetime import datetime, timezone
 import hashlib
 import importlib
@@ -59,8 +63,14 @@ def endpoint(name, fallback=None):
         raise ValueError(f'{name} 必须为不含凭据、查询参数或片段的 HTTP(S) 地址')
     return value.rstrip('/')
 
+class TrialCancelled(Exception):
+    """An interrupted trial has no final score and must be resumed."""
+
 def execute_trial(task, trial, args, output):
     """A separate process per trial prevents environment/history leakage and bounds total time."""
+    stop = args._stop_event
+    if stop.is_set():
+        raise TrialCancelled()
     raw = output / 'scratch' / f"{task['domain']}-{task['task_index']}-{trial}.json"
     raw.parent.mkdir(parents=True, exist_ok=True)
     raw.unlink(missing_ok=True)
@@ -73,7 +83,19 @@ def execute_trial(task, trial, args, output):
     process = subprocess.Popen(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                text=True, start_new_session=True, env=child_env)
     try:
-        process.communicate(timeout=args.task_timeout)
+        deadline = time.monotonic() + args.task_timeout
+        while True:
+            if stop.is_set():
+                raise TrialCancelled()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, args.task_timeout)
+            try:
+                process.communicate(timeout=min(0.25, remaining))
+                break
+            except subprocess.TimeoutExpired:
+                if time.monotonic() >= deadline:
+                    raise
         if raw.exists():
             report = json.loads(raw.read_text())
             if report.get('benchmark') != 'tau-bench-upstream' or report.get('task_index') != task['task_index'] or report.get('domain') != task['domain'] or report.get('split') != args.split:
@@ -121,6 +143,9 @@ def summarize(tasks, records, trials, fingerprint):
             'notice': '官方任务、本地 Pi 适配器及 API 用户模拟器；非排行榜复现。未完成任务不加入已完成任务的 pass^k 均值，须同时查看覆盖率；基础设施失败按0分保留。'}
 
 def run(args, executor=execute_trial):
+    concurrency = getattr(args, 'concurrency', 1)
+    if not 1 <= concurrency <= 16:
+        raise ValueError('concurrency需1–16')
     domains = ['retail', 'airline'] if args.domain == 'all' else [args.domain]
     tasks = inventory(domains, args.split)
     start, stop = getattr(args, 'task_start', 0), getattr(args, 'task_stop', None)
@@ -147,7 +172,9 @@ def run(args, executor=execute_trial):
               'context_window': os.environ.get('MODEL_CONTEXT_WINDOW', '8192'),
               'model_service_slots': os.environ.get('MODEL_SERVICE_SLOTS', 'unknown'),
               'model_service_context_pool': os.environ.get('MODEL_SERVICE_CONTEXT_POOL', 'unknown'),
-              'evaluation_concurrency': 1,
+              'evaluation_concurrency': concurrency,
+              'model_service_description': os.environ.get('MODEL_SERVICE_DESCRIPTION', 'unknown'),
+              'user_max_output_tokens': 512,
               'max_output_tokens': os.environ.get('MODEL_MAX_OUTPUT_TOKENS', '1024'),
               'turn_timeout_ms': os.environ.get('TAU_TURN_TIMEOUT_MS', '120000'),
               'worker_timeout_seconds': os.environ.get('TAU_WORKER_TIMEOUT_SECONDS', '150'),
@@ -170,36 +197,80 @@ def run(args, executor=execute_trial):
     else:
         atomic_json(manifest, {'fingerprint': fingerprint, 'created_at': datetime.now(timezone.utc).isoformat(), 'config': config})
     records = []
-    interrupted = False
-    try:
-        for task in tasks:
-            for trial in range(1, args.trials + 1):
-                path = output / 'runs' / f"{task['domain']}-{task['task_index']:04d}-{trial:02d}.json"
-                if path.exists():
-                    record = json.loads(path.read_text())
-                    if record.get('fingerprint') != fingerprint or record.get('task_hash') != task['task_hash'] or record.get('domain') != task['domain'] or record.get('task_index') != task['task_index'] or record.get('trial') != trial:
-                        raise ValueError(f'续跑记录不匹配：{path.name}')
-                else:
-                    print(f"[{len(records) + 1}/{len(tasks) * args.trials}] {task['domain']} task={task['task_index']} trial={trial} ...", flush=True)
-                    label = f"{task['domain']} task={task['task_index']} trial={trial}"
-                    progress('task_start', path=output / 'progress.jsonl', label=label, position=len(records) + 1, total=len(tasks) * args.trials)
-                    try:
-                        result = executor(task, trial, args, output)
-                    except Exception as exc:
-                        result = {'reward': 0.0, 'messages': [], 'info': {'pi_adapter': {'status': 'error'}, 'error_type': type(exc).__name__}, 'total_cost': None}
-                    record = {**result, **task, 'trial': trial, 'fingerprint': fingerprint}
-                    atomic_json(path, record)
-                    status = record['info'].get('pi_adapter', {}).get('status', 'error')
-                    print(f"  reward={record['reward']} status={status}", flush=True)
-                    progress("task_end", path=output / "progress.jsonl", label=label, reward=record["reward"], status=status, finished=len(records) + 1, total=len(tasks) * args.trials)
+    pending = []
+    for task in tasks:
+        for trial in range(1, args.trials + 1):
+            path = output / 'runs' / f"{task['domain']}-{task['task_index']:04d}-{trial:02d}.json"
+            if path.exists():
+                record = json.loads(path.read_text())
+                if record.get('fingerprint') != fingerprint or record.get('task_hash') != task['task_hash'] or record.get('domain') != task['domain'] or record.get('task_index') != task['task_index'] or record.get('trial') != trial:
+                    raise ValueError(f'续跑记录不匹配：{path.name}')
                 records.append(record)
-                atomic_json(output / 'summary.json', summarize(tasks, records, args.trials, fingerprint))
+            else:
+                pending.append((task, trial, path))
+    atomic_json(output / 'summary.json', summarize(tasks, records, args.trials, fingerprint))
+    args._stop_event = Event()
+    interrupted = False
+    pool = ThreadPoolExecutor(max_workers=concurrency)
+    active = {}
+    queue = iter(pending)
+    total = len(tasks) * args.trials
+    submitted = len(records)
+
+    def launch():
+        nonlocal submitted
+        try:
+            task, trial, path = next(queue)
+        except StopIteration:
+            return False
+        submitted += 1
+        label = f"{task['domain']} task={task['task_index']} trial={trial}"
+        print(f"[{submitted}/{total}] {label} ...", flush=True)
+        progress('task_start', path=output / 'progress.jsonl', label=label, position=submitted, total=total)
+        active[pool.submit(executor, task, trial, args, output)] = (task, trial, path, label)
+        return True
+
+    def save(future):
+        task, trial, path, label = active[future]
+        try:
+            result = future.result()
+        except TrialCancelled:
+            return
+        except Exception as exc:
+            result = {'reward': 0.0, 'messages': [], 'info': {'pi_adapter': {'status': 'error'}, 'error_type': type(exc).__name__}, 'total_cost': None}
+        record = {**result, **task, 'trial': trial, 'fingerprint': fingerprint}
+        atomic_json(path, record)
+        records.append(record)
+        status = record['info'].get('pi_adapter', {}).get('status', 'error')
+        print(f"[{len(records)}/{total} finished] {label} reward={record['reward']} status={status}", flush=True)
+        progress('task_end', path=output / 'progress.jsonl', label=label, reward=record['reward'], status=status, finished=len(records), total=total)
+        atomic_json(output / 'summary.json', summarize(tasks, records, args.trials, fingerprint))
+
+    try:
+        for _ in range(concurrency):
+            if not launch():
+                break
+        while active:
+            finished, _ = wait(active, timeout=0.25, return_when=FIRST_COMPLETED)
+            for future in finished:
+                save(future)
+                del active[future]
+            for _ in finished:
+                launch()
     except KeyboardInterrupt:
         interrupted = True
-        print('\n已中断，已完成的 trial 已保存。使用原命令加 --resume 继续。', flush=True)
+        print('\n正在停止活动任务；已完成的 trial 保留，未完成任务不计分。原命令加 --resume 可继续。', flush=True)
     finally:
-        summary = summarize(tasks, records, args.trials, fingerprint)
-        atomic_json(output / 'summary.json', summary)
+        args._stop_event.set()
+        pool.shutdown(wait=True, cancel_futures=True)
+        # Preserve results that completed just before interruption; cancelled trials get no score.
+        for future in list(active):
+            if not future.cancelled():
+                try:
+                    save(future)
+                except KeyboardInterrupt:
+                    pass
+        atomic_json(output / 'summary.json', summarize(tasks, records, args.trials, fingerprint))
     print(f"Summary: {output / 'summary.json'}", flush=True)
     if interrupted:
         return 130
@@ -216,12 +287,16 @@ def main(argv=None):
     parser.add_argument('--task-stop', type=int, help='每个域的结束任务索引，不含末端；默认全部')
     parser.add_argument('--max-steps', type=int, default=30)
     parser.add_argument('--task-timeout', type=int, default=900, help='每个 trial 的最长秒数')
+    parser.add_argument('--concurrency', type=int, default=1, help='同时运行的独立任务数，1–16；与模型服务槽位分别设置')
     parser.add_argument('--output', default='.data/evals/tau-full')
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(argv)
-    if not 1 <= args.trials <= 20 or not 1 <= args.max_steps <= 100 or args.task_timeout < 1:
-        parser.error('trials需1–20，max-steps需1–100，task-timeout需为正数')
+    if not 1 <= args.trials <= 20 or not 1 <= args.max_steps <= 100 or args.task_timeout < 1 or not 1 <= args.concurrency <= 16:
+        parser.error('trials需1–20，max-steps需1–100，task-timeout需为正数，concurrency需1–16')
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt()
+    signal.signal(signal.SIGTERM, interrupt)
     try:
         return run(args)
     except (ValueError, KeyError) as exc:

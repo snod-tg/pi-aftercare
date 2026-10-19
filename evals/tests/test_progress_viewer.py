@@ -14,3 +14,18 @@ def test_progress_page_counts_final_scores_and_keeps_role_endpoints_separate(tmp
     assert result['service_slots'] == '4'
     assert result['evaluation_concurrency'] == 1
     assert 'retail task=2' in result['current']
+
+
+def test_progress_page_tracks_all_active_tasks_and_removes_finished(tmp_path):
+    events = [
+        {'event': 'task_start', 'task': 'retail task=0 trial=1'},
+        {'event': 'task_start', 'task': 'retail task=1 trial=1'},
+        {'event': 'model_request', 'task': 'retail task=0 trial=1'},
+        {'event': 'task_end', 'task': 'retail task=1 trial=1'},
+        {'event': 'task_start', 'task': 'retail task=2 trial=1'},
+    ]
+    (tmp_path / 'progress.jsonl').write_text('\n'.join(json.dumps(event) for event in events))
+    result = snapshot(tmp_path)
+    assert result['active_tasks'] == ['retail task=0 trial=1', 'retail task=2 trial=1']
+    assert 'model_request' in result['current']
+    assert 'task=1' not in result['current']

@@ -68,3 +68,83 @@ def test_task_range_selects_only_requested_official_tasks(tmp_path, capsys):
     settings.task_stop = 116
     with pytest.raises(ValueError, match='越界'):
         runner.run(settings)
+
+
+def test_four_tasks_overlap_checkpoint_resume_and_concurrency_guard(tmp_path, monkeypatch):
+    from threading import Barrier, Lock
+    tasks = [{'domain': 'retail', 'task_index': i, 'task_hash': str(i)} for i in range(8)]
+    monkeypatch.setattr(runner, 'inventory', lambda domains, split: tasks)
+    monkeypatch.setenv('MODEL_NAME', 'fixture-model')
+    monkeypatch.setenv('MODEL_BASE_URL', 'http://model.test/v1')
+    barrier, lock = Barrier(4), Lock()
+    running = peak = calls = 0
+    def execute(task, trial, settings, output):
+        nonlocal running, peak, calls
+        with lock:
+            running += 1
+            calls += 1
+            peak = max(peak, running)
+        barrier.wait(timeout=5)
+        with lock:
+            running -= 1
+        return {'reward': float(task['task_index'] % 2 == 0), 'messages': [], 'info': {'pi_adapter': {'status': 'completed'}}}
+    settings = args(tmp_path, domain='retail', trials=1, concurrency=4)
+    assert runner.run(settings, execute) == 0
+    assert peak == 4 and calls == 8
+    summary = json.loads((tmp_path / 'results/summary.json').read_text())
+    assert summary['finished_runs'] == 8 and summary['observed_success_rate'] == 0.5
+    manifest = json.loads((tmp_path / 'results/manifest.json').read_text())
+    assert manifest['config']['evaluation_concurrency'] == 4
+    assert manifest['config']['user_max_output_tokens'] == 512
+    settings.resume = True
+    assert runner.run(settings, execute) == 0
+    assert calls == 8
+    settings.concurrency = 2
+    with pytest.raises(ValueError, match='不能混合'):
+        runner.run(settings, execute)
+
+
+def test_parallel_interrupt_does_not_score_cancelled_trials(tmp_path, monkeypatch):
+    from threading import Barrier
+    tasks = [{'domain': 'retail', 'task_index': i, 'task_hash': str(i)} for i in range(4)]
+    monkeypatch.setattr(runner, 'inventory', lambda domains, split: tasks)
+    monkeypatch.setenv('MODEL_NAME', 'fixture-model')
+    monkeypatch.setenv('MODEL_BASE_URL', 'http://model.test/v1')
+    barrier = Barrier(4)
+    def execute(task, trial, settings, output):
+        barrier.wait(timeout=5)
+        if task['task_index'] == 0:
+            raise KeyboardInterrupt()
+        assert settings._stop_event.wait(timeout=5)
+        raise runner.TrialCancelled()
+    settings = args(tmp_path, domain='retail', trials=1, concurrency=4)
+    assert runner.run(settings, execute) == 130
+    summary = json.loads((tmp_path / 'results/summary.json').read_text())
+    assert summary['finished_runs'] == 0 and summary['observed_success_rate'] is None
+    assert not list((tmp_path / 'results/runs').glob('*.json'))
+
+
+def test_real_subprocess_stops_promptly_when_parallel_run_is_cancelled(tmp_path, monkeypatch):
+    from threading import Event, Timer
+    import subprocess
+    import sys
+    import time
+    original = subprocess.Popen
+    processes = []
+    def launch(command, **kwargs):
+        child = original([sys.executable, '-c', 'import time; time.sleep(60)'], **kwargs)
+        processes.append(child)
+        return child
+    monkeypatch.setattr(runner.subprocess, 'Popen', launch)
+    settings = args(tmp_path)
+    settings._stop_event = Event()
+    timer = Timer(0.2, settings._stop_event.set)
+    timer.start()
+    started = time.monotonic()
+    try:
+        with pytest.raises(runner.TrialCancelled):
+            runner.execute_trial({'domain': 'retail', 'task_index': 0}, 1, settings, tmp_path)
+    finally:
+        timer.cancel()
+    assert time.monotonic() - started < 5
+    assert len(processes) == 1 and processes[0].poll() is not None
