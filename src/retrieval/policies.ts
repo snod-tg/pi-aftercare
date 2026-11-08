@@ -27,6 +27,9 @@ function tokens(text: string) {
       : [part],
   );
 }
+const BM25_K1 = 1.2;
+const BM25_B = 0.75;
+
 export class PolicyRetriever {
   readonly documents: PolicyDocument[];
   constructor(documents: PolicyDocument[]) {
@@ -82,7 +85,8 @@ export class PolicyRetriever {
           const frequency = df.get(term)!;
           const idf = Math.log(1 + (candidates.length - frequency + 0.5) / (frequency + 0.5));
           score +=
-            (idf * tf * 2.2) / (tf + 1.2 * (0.25 + (0.75 * candidate.terms.length) / average));
+            (idf * tf * (BM25_K1 + 1)) /
+            (tf + BM25_K1 * (1 - BM25_B + (BM25_B * candidate.terms.length) / average));
         }
         return { ...candidate, score };
       })

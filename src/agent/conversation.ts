@@ -1,13 +1,20 @@
-import {
-  SessionManager,
-  type AgentSession,
-  type AgentSessionEvent,
-} from '@earendil-works/pi-coding-agent';
+import type { AgentSession } from '@earendil-works/pi-coding-agent';
 import type { AftercareBackend, OperationResult } from '../domain/backend.js';
 import { DomainError } from '../domain/errors.js';
 import type { Actor, Quote } from '../domain/types.js';
 import { createConnectedModel, type ModelConnection } from './model-connection.js';
+import { readPositiveInteger } from '../env.js';
+import {
+  restoreSessionManager,
+  type ConfirmationReceipt,
+  type ConversationCheckpoint,
+} from './checkpoint.js';
 import { createAftercareSession } from './session.js';
+import type { ToolHooks } from './tools.js';
+import { AgentTurn, type RunStatus, type StopReason, type TraceEvent } from './turn.js';
+
+export type { ConfirmationReceipt, ConversationCheckpoint } from './checkpoint.js';
+export type { RunStatus, TraceEvent } from './turn.js';
 
 export interface RunLimits {
   maxModelCalls: number;
@@ -16,52 +23,17 @@ export interface RunLimits {
 }
 
 export function readRunLimits(env: NodeJS.ProcessEnv = process.env): RunLimits {
-  const read = (name: string, fallback: number) => {
-    const value = env[name] === undefined ? fallback : Number(env[name]);
-    if (!Number.isSafeInteger(value) || value < 1) throw new Error(`${name} 必须是正整数`);
-    return value;
-  };
   return {
-    maxModelCalls: read('AGENT_MAX_MODEL_CALLS', 8),
-    maxToolCalls: read('AGENT_MAX_TOOL_CALLS', 24),
-    timeoutMs: read('AGENT_TIMEOUT_MS', 120_000),
+    maxModelCalls: readPositiveInteger(env, 'AGENT_MAX_MODEL_CALLS', 8),
+    maxToolCalls: readPositiveInteger(env, 'AGENT_MAX_TOOL_CALLS', 24),
+    timeoutMs: readPositiveInteger(env, 'AGENT_TIMEOUT_MS', 120_000),
   };
 }
 
-export interface ConfirmationReceipt {
-  quoteId: string;
-  confirmationId: string;
-  idempotencyKey: string;
-}
-
-export interface ConversationCheckpoint {
-  version: 1;
-  entries: NonNullable<Parameters<typeof SessionManager.inMemory>[2]>;
-  quotes: Quote[];
-  receipts: ConfirmationReceipt[];
-}
 export interface ConversationRestore {
   checkpoint?: ConversationCheckpoint;
   onCheckpoint?: () => Promise<void>;
 }
-
-export interface TraceEvent {
-  time: string;
-  type: 'text' | 'tool_start' | 'tool_end';
-  text?: string;
-  tool?: string;
-  ok?: boolean;
-  data?: unknown;
-  orderId?: string;
-}
-
-export type RunStatus =
-  | 'completed'
-  | 'model_error'
-  | 'model_limit'
-  | 'tool_limit'
-  | 'timeout'
-  | 'cancelled';
 
 export interface RunResult {
   status: RunStatus;
@@ -75,165 +47,143 @@ export interface RunResult {
   operations: OperationResult[];
 }
 
-type StopReason = Exclude<RunResult['status'], 'completed' | 'model_error'>;
+type ToolInterceptor = { run<T>(tool: string, operation: () => T | Promise<T>): Promise<T> };
+
+interface ConversationOptions extends ConversationRestore {
+  service: AftercareBackend;
+  actor: Actor;
+  connection: ModelConnection;
+  limits?: RunLimits;
+  fetch?: typeof globalThis.fetch;
+  restorePendingQuotes?: boolean;
+  faults?: ToolInterceptor;
+  confirmationMode?: 'web' | 'cli';
+}
 
 export class AgentConversation {
   private session!: AgentSession;
   private readonly quotes = new Map<string, Quote>();
   private readonly receipts = new Map<string, ConfirmationReceipt>();
-  private busy = false;
+  private activeTurn: AgentTurn | undefined;
   private disposed = false;
-  private reason: StopReason | undefined;
-  private modelCalls = 0;
-  private toolCalls = 0;
-  private invalidGeneration = false;
-  private checkpoint: (() => Promise<void>) | undefined;
 
   private constructor(
     private readonly service: AftercareBackend,
     private readonly actor: Actor,
     private readonly connection: ModelConnection,
     private readonly limits: RunLimits,
+    private readonly checkpoint?: () => Promise<void>,
   ) {}
 
-  static async create(options: {
-    service: AftercareBackend;
-    actor: Actor;
-    connection: ModelConnection;
-    limits?: RunLimits;
-    fetch?: typeof globalThis.fetch;
-    restorePendingQuotes?: boolean;
-    faults?: { run<T>(tool: string, operation: () => T | Promise<T>): Promise<T> };
-    confirmationMode?: 'web' | 'cli';
-    checkpoint?: ConversationCheckpoint;
-    onCheckpoint?: () => Promise<void>;
-  }) {
+  static async create(options: ConversationOptions) {
     const limits = { ...readRunLimits({}), ...options.limits };
-    if (Object.values(limits).some((value) => !Number.isSafeInteger(value) || value < 1)) {
+    if (Object.values(limits).some((value) => !Number.isSafeInteger(value) || value < 1))
       throw new Error('运行限制必须是正整数');
-    }
+
+    const actor = Object.freeze({ ...options.actor });
+    const manager = restoreSessionManager(options.checkpoint, actor);
     const conversation = new AgentConversation(
       options.service,
-      Object.freeze({ ...options.actor }),
+      actor,
       options.connection,
       limits,
+      options.onCheckpoint,
     );
-    conversation.checkpoint = options.onCheckpoint;
-    const manager = SessionManager.inMemory(process.cwd(), undefined, options.checkpoint?.entries);
-    if (options.checkpoint) {
-      if (options.checkpoint.version !== 1) throw new Error('不支持的会话记录版本');
-      for (const quote of options.checkpoint.quotes) {
-        if (
-          quote.merchantId !== options.actor.merchantId ||
-          quote.customerId !== options.actor.customerId
-        )
-          throw new Error('会话方案归属不匹配');
-        conversation.quotes.set(quote.id, structuredClone(quote));
-      }
-      for (const receipt of options.checkpoint.receipts) {
-        conversation.receipts.set(receipt.quoteId, { ...receipt });
-      }
-      // A crash can leave an assistant tool call without its result. Record uncertainty;
-      // never execute that old call automatically when resuming the transcript.
-      const messages = manager.buildSessionContext().messages;
-      const results = new Set(
-        messages.filter((m) => m.role === 'toolResult').map((m) => m.toolCallId),
-      );
-      for (const message of messages)
-        if (message.role === 'assistant') {
-          for (const part of message.content)
-            if (part.type === 'toolCall' && !results.has(part.id)) {
-              manager.appendMessage({
-                role: 'toolResult',
-                toolCallId: part.id,
-                toolName: part.name,
-                content: [
-                  {
-                    type: 'text',
-                    text: 'INTERRUPTED_TOOL: 上轮处理意外中断，工具结果未知；不要假定成功或重放旧写操作。先重新查询订单、库存和实际申请状态；已有幂等键必须复用。',
-                  },
-                ],
-                isError: true,
-                timestamp: Date.now(),
-              });
-              results.add(part.id);
-            }
-        }
-    }
+    conversation.restoreBusinessState(options.checkpoint);
+
     const { modelRuntime, model } = await createConnectedModel(options.connection);
     const { session } = await createAftercareSession({
       service: options.service,
-      actor: options.actor,
+      actor,
       modelRuntime,
       model,
       sessionManager: manager,
       ...(options.confirmationMode ? { confirmationMode: options.confirmationMode } : {}),
-      toolHooks: {
-        aroundTool: async (name, operation) => {
-          await conversation.checkpoint?.();
-          const result = await (options.faults ? options.faults.run(name, operation) : operation());
-          await conversation.checkpoint?.();
-          return result;
-        },
-        beforeTool: () => conversation.beforeTool(),
-        onQuote: (quote) => {
-          for (const [id, old] of conversation.quotes) {
-            if (old.orderId === quote.orderId) conversation.quotes.delete(id);
-          }
-          conversation.quotes.set(quote.id, quote);
-        },
-        authorizeCreate: (input) => {
-          const receipt = conversation.receipts.get(input.quoteId);
-          if (
-            !conversation.quotes.has(input.quoteId) ||
-            !receipt ||
-            receipt.confirmationId !== input.confirmationId ||
-            receipt.idempotencyKey !== input.idempotencyKey
-          ) {
-            throw new DomainError(
-              'USER_CONFIRMATION_REQUIRED',
-              '需要应用记录的当前方案确认，不能由模型或聊天文字生成',
-              409,
-            );
-          }
-        },
-      },
+      toolHooks: conversation.createToolHooks(options.faults),
     });
     conversation.session = session;
-    if (options.restorePendingQuotes)
-      for (const quote of await options.service.listPendingQuotes(options.actor))
-        conversation.quotes.set(quote.id, quote);
-    const originalStream = session.agent.streamFunction;
-    session.agent.streamFunction = (selectedModel, context, streamOptions) => {
-      if (conversation.reason) throw new Error(conversation.reason);
-      if (conversation.invalidGeneration) throw new Error('模型输出不完整，本轮已停止');
-      if (conversation.modelCalls >= limits.maxModelCalls) {
-        conversation.reason = 'model_limit';
+    try {
+      if (options.restorePendingQuotes) {
+        for (const quote of await options.service.listPendingQuotes(actor))
+          conversation.quotes.set(quote.id, quote);
+      }
+      conversation.installModelGuards(options.fetch);
+      return conversation;
+    } catch (error) {
+      await conversation.close();
+      throw error;
+    }
+  }
+
+  private restoreBusinessState(checkpoint?: ConversationCheckpoint) {
+    if (!checkpoint) return;
+    for (const quote of checkpoint.quotes) this.quotes.set(quote.id, structuredClone(quote));
+    for (const receipt of checkpoint.receipts) this.receipts.set(receipt.quoteId, { ...receipt });
+  }
+
+  private createToolHooks(interceptor?: ToolInterceptor): ToolHooks {
+    return {
+      aroundTool: async (name, operation) => {
+        await this.checkpoint?.();
+        const result = await (interceptor ? interceptor.run(name, operation) : operation());
+        await this.checkpoint?.();
+        return result;
+      },
+      beforeTool: () => this.beforeTool(),
+      onQuote: (quote) => this.rememberQuote(quote),
+      authorizeCreate: (input) => this.authorizeCreate(input),
+    };
+  }
+
+  private rememberQuote(quote: Quote) {
+    for (const [id, old] of this.quotes) {
+      if (old.orderId === quote.orderId) this.quotes.delete(id);
+    }
+    this.quotes.set(quote.id, quote);
+  }
+
+  private authorizeCreate(input: ConfirmationReceipt) {
+    const receipt = this.receipts.get(input.quoteId);
+    if (
+      !this.quotes.has(input.quoteId) ||
+      !receipt ||
+      receipt.confirmationId !== input.confirmationId ||
+      receipt.idempotencyKey !== input.idempotencyKey
+    ) {
+      throw new DomainError(
+        'USER_CONFIRMATION_REQUIRED',
+        '需要应用记录的当前方案确认，不能由模型或聊天文字生成',
+        409,
+      );
+    }
+  }
+
+  private installModelGuards(customFetch?: typeof globalThis.fetch) {
+    const originalStream = this.session.agent.streamFunction;
+    const checkpoint = this.checkpoint;
+    // The SDK has appended prior messages by the time the transport is called.
+    const fetchWithCheckpoint: typeof globalThis.fetch | undefined = checkpoint
+      ? async (input, init) => {
+          await checkpoint();
+          return (customFetch ?? globalThis.fetch)(input, init);
+        }
+      : customFetch;
+    this.session.agent.streamFunction = (model, context, options) => {
+      const turn = this.activeTurn;
+      if (!turn || turn.reason) throw new Error(turn?.reason ?? '没有执行中的轮次');
+      if (turn.invalidGeneration) throw new Error('模型输出不完整，本轮已停止');
+      if (turn.modelCalls >= this.limits.maxModelCalls) {
+        turn.reason = 'model_limit';
         throw new Error('本轮模型请求次数已达上限');
       }
-      conversation.modelCalls += 1;
-      return originalStream(selectedModel, context, {
-        ...streamOptions,
-        maxTokens: options.connection.maxOutputTokens,
+      turn.modelCalls += 1;
+      return originalStream(model, context, {
+        ...options,
+        maxTokens: this.connection.maxOutputTokens,
         maxRetries: 0,
-        ...(options.onCheckpoint
-          ? {
-              fetch: async (
-                input: Parameters<typeof fetch>[0],
-                init?: Parameters<typeof fetch>[1],
-              ) => {
-                // The SDK has appended the preceding user/tool messages by this boundary.
-                // Save them before issuing the next model request.
-                await conversation.checkpoint?.();
-                return (options.fetch ?? globalThis.fetch)(input, init);
-              },
-            }
-          : options.fetch
-            ? { fetch: options.fetch }
-            : {}),
+        ...(fetchWithCheckpoint ? { fetch: fetchWithCheckpoint } : {}),
       });
     };
-    return conversation;
   }
 
   exportCheckpoint(): ConversationCheckpoint {
@@ -259,19 +209,20 @@ export class AgentConversation {
   }
 
   private beforeTool() {
-    if (!this.busy || this.reason) throw new Error('当前轮次已停止，不能继续执行工具');
-    if (this.invalidGeneration)
+    const turn = this.activeTurn;
+    if (!turn || turn.reason) throw new Error('当前轮次已停止，不能继续执行工具');
+    if (turn.invalidGeneration)
       throw new DomainError('MODEL_OUTPUT_INCOMPLETE', '截断或失败的模型输出不得执行工具', 409);
-    if (this.toolCalls >= this.limits.maxToolCalls) {
+    if (turn.toolCalls >= this.limits.maxToolCalls) {
       this.stop('tool_limit');
       throw new Error('本轮工具执行次数已达上限');
     }
-    this.toolCalls += 1;
+    turn.toolCalls += 1;
   }
 
   private ensureReady() {
     if (this.disposed) throw new Error('会话已关闭');
-    if (this.busy) throw new Error('上一轮仍在执行，请先等待或取消');
+    if (this.activeTurn) throw new Error('上一轮仍在执行，请先等待或取消');
   }
 
   async pendingQuotes() {
@@ -325,13 +276,14 @@ export class AgentConversation {
   }
 
   private stop(reason: StopReason) {
-    this.reason ??= reason;
+    if (!this.activeTurn) return;
+    this.activeTurn.reason ??= reason;
     // Synchronously signal cancellation; never wait for idle from an Agent event handler.
     this.session.agent.abort();
   }
 
   cancel() {
-    if (this.busy) this.stop('cancelled');
+    this.stop('cancelled');
   }
 
   async run(prompt: string, onEvent?: (event: TraceEvent) => void): Promise<RunResult> {
@@ -339,79 +291,45 @@ export class AgentConversation {
     if (!prompt.trim() || prompt.length > 4000) throw new Error('每条消息须为 1–4000 个字符');
     if (this.session.getSessionStats().totalMessages >= 80)
       throw new Error('会话历史已较长，请使用 /reset 开始新会话');
-    this.busy = true;
-    this.reason = undefined;
-    this.modelCalls = 0;
-    this.toolCalls = 0;
-    this.invalidGeneration = false;
-    const trace: TraceEvent[] = [];
-    let text = '';
-    let failure: string | undefined;
+
+    const turn = new AgentTurn(onEvent);
+    this.activeTurn = turn;
     const tokensBefore = this.session.getSessionStats().tokens.total;
-    const emit = (event: Omit<TraceEvent, 'time'>) => {
-      const entry = { ...event, time: new Date().toISOString() };
-      if (trace.length < 120) trace.push(entry);
-      onEvent?.(entry);
-    };
-    const unsubscribe = this.session.subscribe((event: AgentSessionEvent) => {
-      if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
-        emit({ type: 'text', text: event.assistantMessageEvent.delta });
-      } else if (event.type === 'tool_execution_start') {
-        emit({ type: 'tool_start', tool: event.toolName });
-      } else if (event.type === 'tool_execution_end') {
-        const details: unknown = event.result.details;
-        const orderId =
-          !event.isError && details && typeof details === 'object'
-            ? event.toolName === 'get_order' && 'id' in details
-              ? details.id
-              : event.toolName === 'quote_aftercare' && 'orderId' in details
-                ? details.orderId
-                : undefined
-            : undefined;
-        emit({
-          type: 'tool_end',
-          tool: event.toolName,
-          ok: !event.isError,
-          ...(typeof orderId === 'string' ? { orderId } : {}),
-          ...(event.toolName === 'search_aftercare_policy' && !event.isError
-            ? { data: details }
-            : {}),
-        });
-      } else if (event.type === 'message_end' && event.message.role === 'assistant') {
-        text = event.message.content
-          .filter((part) => part.type === 'text')
-          .map((part) => part.text)
-          .join('');
-        if (event.message.stopReason === 'error') {
-          this.invalidGeneration = true;
-          failure ??= event.message.errorMessage ?? '模型 API 请求失败';
-        }
-        if (event.message.stopReason === 'length') {
-          this.invalidGeneration = true;
-          failure ??= '模型输出达到上限，本轮结果可能不完整';
-        }
-      }
-    });
+    try {
+      await this.promptWithDeadline(prompt, turn);
+      return await this.collectResult(turn, tokensBefore);
+    } finally {
+      this.activeTurn = undefined;
+    }
+  }
+
+  private async promptWithDeadline(prompt: string, turn: AgentTurn) {
+    const unsubscribe = this.session.subscribe((event) => turn.handle(event));
     const timer = setTimeout(() => this.stop('timeout'), this.limits.timeoutMs);
     try {
       await this.session.prompt(prompt, { expandPromptTemplates: false });
     } catch (error) {
-      failure ??= error instanceof Error ? error.message : '模型 API 请求失败';
+      turn.recordFailure(error);
     } finally {
       clearTimeout(timer);
       unsubscribe();
-      this.busy = false;
     }
-    if (failure && this.connection.apiKey !== 'local')
-      failure = failure.replaceAll(this.connection.apiKey, '[redacted]');
+  }
+
+  private async collectResult(turn: AgentTurn, tokensBefore: number): Promise<RunResult> {
+    const failure =
+      turn.failure && this.connection.apiKey !== 'local'
+        ? turn.failure.replaceAll(this.connection.apiKey, '[redacted]')
+        : turn.failure;
+    const status = turn.reason ?? (failure ? 'model_error' : 'completed');
     return {
-      status: this.reason ?? (failure ? 'model_error' : 'completed'),
-      text,
+      status,
+      text: turn.text,
       ...(failure ? { error: failure.slice(0, 500) } : {}),
-      modelCalls: this.modelCalls,
-      toolCalls: this.toolCalls,
+      modelCalls: turn.modelCalls,
+      toolCalls: turn.toolCalls,
       tokens: this.session.getSessionStats().tokens.total - tokensBefore,
-      trace,
+      trace: turn.trace,
       pendingQuotes: await this.pendingQuotes(),
       // Read back actual business results even if inference failed after a write.
       operations: await Promise.all(
@@ -424,7 +342,7 @@ export class AgentConversation {
 
   async close() {
     if (this.disposed) return;
-    if (this.busy) {
+    if (this.activeTurn) {
       this.cancel();
       await this.session.abort();
     }

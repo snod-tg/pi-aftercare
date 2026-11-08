@@ -170,7 +170,7 @@ export class PostgresSessionStore implements SessionStore {
     const client = await this.pool.connect();
     const lock = `pi-aftercare-session:${this.schema}:${id}`;
     let locked = false;
-    const release = async () => {
+    const releaseConnection = async () => {
       let failed = false;
       try {
         if (locked) await client.query('SELECT pg_advisory_unlock(hashtextextended($1,0))', [lock]);
@@ -228,12 +228,12 @@ export class PostgresSessionStore implements SessionStore {
           try {
             await queue;
           } finally {
-            await release();
+            await releaseConnection();
           }
         },
       };
     } catch (error) {
-      await release();
+      await releaseConnection();
       throw error;
     }
   }

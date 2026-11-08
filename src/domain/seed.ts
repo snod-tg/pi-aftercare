@@ -78,6 +78,7 @@ export function createDemoState(now = new Date()): DemoState {
     },
     orders: new Map([
       [order.id, order],
+      // Reuse the basket for cross-customer isolation tests; line IDs are scoped to an order.
       ['O-2001', { ...structuredClone(order), id: 'O-2001', ...DEMO_BOB }],
     ]),
     variants: new Map(variants.map((variant) => [variant.id, variant])),

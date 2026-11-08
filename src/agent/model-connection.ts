@@ -1,4 +1,5 @@
 import { ModelRuntime } from '@earendil-works/pi-coding-agent';
+import { readPositiveInteger } from '../env.js';
 
 export interface ModelConnection {
   baseUrl: string;
@@ -6,12 +7,6 @@ export interface ModelConnection {
   apiKey: string;
   contextWindow: number;
   maxOutputTokens: number;
-}
-
-function positiveInteger(value: string | undefined, fallback: number, name: string) {
-  const number = value === undefined ? fallback : Number(value);
-  if (!Number.isSafeInteger(number) || number < 1) throw new Error(`${name} 必须是正整数`);
-  return number;
 }
 
 export function readModelConnection(env: NodeJS.ProcessEnv = process.env): ModelConnection {
@@ -33,12 +28,8 @@ export function readModelConnection(env: NodeJS.ProcessEnv = process.env): Model
   ) {
     throw new Error('MODEL_BASE_URL 只能使用 HTTP(S)，且不得包含凭据、查询参数或片段');
   }
-  const contextWindow = positiveInteger(env.MODEL_CONTEXT_WINDOW, 8192, 'MODEL_CONTEXT_WINDOW');
-  const maxOutputTokens = positiveInteger(
-    env.MODEL_MAX_OUTPUT_TOKENS,
-    1024,
-    'MODEL_MAX_OUTPUT_TOKENS',
-  );
+  const contextWindow = readPositiveInteger(env, 'MODEL_CONTEXT_WINDOW', 8192);
+  const maxOutputTokens = readPositiveInteger(env, 'MODEL_MAX_OUTPUT_TOKENS', 1024);
   if (maxOutputTokens >= contextWindow) throw new Error('输出 Token 上限必须小于上下文窗口');
   return {
     baseUrl: url.toString().replace(/\/+$/, ''),
