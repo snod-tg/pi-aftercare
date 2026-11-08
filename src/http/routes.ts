@@ -10,13 +10,11 @@ import {
   OrderIdSchema,
   QuoteInputSchema,
 } from '../domain/schemas.js';
-import { demoActor } from './demo-auth.js';
+import { demoActor, protectDemoRoutes } from './demo-auth.js';
 
 export async function registerRoutes(app: FastifyInstance, service: AftercareBackend) {
   await app.register(async (routes) => {
-    routes.addHook('preHandler', async (request) => {
-      demoActor(request);
-    });
+    protectDemoRoutes(routes);
 
     routes.get<{ Params: Static<typeof OrderIdSchema> }>(
       '/orders/:orderId',

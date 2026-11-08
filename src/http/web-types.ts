@@ -1,11 +1,23 @@
+import type { RunStatus, TraceEvent } from '../agent/conversation.js';
 import type { AftercareRequest, Order, Quote } from '../domain/types.js';
+
+export interface ServiceMeta {
+  service: string;
+  demo: boolean;
+  configured: boolean;
+  model: string;
+  persistent: boolean;
+  sessionPersistent: boolean;
+}
+
+export type MessageStatus = RunStatus | 'interrupted';
 
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   time: string;
-  status?: string;
+  status?: MessageStatus;
 }
 export interface PolicyEvidence {
   citation: string;
@@ -38,5 +50,11 @@ export interface WebSnapshot {
   requests: AftercareRequest[];
   evidence: PolicyEvidence[];
   trace: ToolTrace[];
-  lastRun?: { status: string; modelCalls: number; toolCalls: number; tokens: number };
+  lastRun?: { status: RunStatus; modelCalls: number; toolCalls: number; tokens: number };
 }
+
+export type WebTurnEvent =
+  | { type: 'start'; data: { busy: true; message: ChatMessage } }
+  | { type: 'trace'; data: TraceEvent }
+  | { type: 'result'; data: WebSnapshot }
+  | { type: 'error'; data: { message: string } };

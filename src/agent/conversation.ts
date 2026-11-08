@@ -55,8 +55,16 @@ export interface TraceEvent {
   orderId?: string;
 }
 
+export type RunStatus =
+  | 'completed'
+  | 'model_error'
+  | 'model_limit'
+  | 'tool_limit'
+  | 'timeout'
+  | 'cancelled';
+
 export interface RunResult {
-  status: 'completed' | 'model_error' | 'model_limit' | 'tool_limit' | 'timeout' | 'cancelled';
+  status: RunStatus;
   text: string;
   error?: string;
   modelCalls: number;
