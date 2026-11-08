@@ -27,3 +27,5 @@ __pycache__/
 /uv.lock
 /.python-version
 /AGENTS.md
+/tsconfig.evaluation.local.json
+/biome.evaluation.local.json

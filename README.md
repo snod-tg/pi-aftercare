@@ -140,11 +140,13 @@ DATABASE_SCHEMA=aftercare_demo npm run chat
 npm run dev
 npm run dev:web
 
-# 类型、业务测试、Pi SDK、HTTP 检查和构建；无需真实模型
+# lint、格式、类型、业务测试、Pi SDK、HTTP 检查和构建；无需真实模型
 npm run check
 # 单独验证真实 PostgreSQL；使用临时隔离 schema，需要已配置 DATABASE_URL
 npm run test:postgres
 ```
+
+使用 `npm run format` 统一代码格式；`npm run lint` 和 `npm run format:check` 可单独执行。
 
 正式构建由 Fastify 同源提供网页；开发时由 Vite 代理 `/api` 请求。测试覆盖确认门禁、身份隔离、库存竞争、事务回滚、幂等重试、超时、取消及会话恢复。普通检查会跳过真实数据库专用测试，需单独运行 `test:postgres`。
 

@@ -20,12 +20,15 @@
     "chat": "node --import tsx scripts/chat.ts",
     "check:sdk": "node --import tsx scripts/check-sdk.ts",
     "check:http": "node --import tsx scripts/check-http.ts",
-    "check": "npm run typecheck && npm test && npm run check:sdk && npm run check:http && npm run build",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run check:sdk && npm run check:http && npm run build",
     "db:local": "node --import tsx scripts/postgres-local.ts",
     "db:init": "node --import tsx scripts/db-init.ts",
     "test:postgres": "node --import tsx scripts/test-postgres.ts",
     "dev:web": "vite",
-    "build:web": "vite build"
+    "build:web": "vite build",
+    "lint": "biome lint . --error-on-warnings",
+    "format": "biome format --write .",
+    "format:check": "biome format ."
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "1.2.0",
@@ -48,6 +51,7 @@
     "@earendil-works/pi-tui": "1.2.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.6",
     "@types/node": "24.19.2",
     "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
