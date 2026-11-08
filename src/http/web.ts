@@ -8,7 +8,7 @@ import { DomainError } from '../domain/errors.js';
 import type { Actor } from '../domain/types.js';
 import { MemorySessionStore, type SavedSession, type SessionStore } from '../storage/sessions.js';
 import { demoActor } from './demo-auth.js';
-import type { PolicyEvidence, WebSnapshot } from './web-types.js';
+import type { ChatMessage, PolicyEvidence, WebSnapshot } from './web-types.js';
 
 export type ConversationFactory = (actor: Actor, restore: ConversationRestore) => Promise<AgentConversation>;
 const params = Type.Object({ id: Type.String({ minLength: 1, maxLength: 80 }) }, { additionalProperties: false });
@@ -26,6 +26,7 @@ function recoverInterrupted(s: SavedSession) {
 }
 function remember(s: SavedSession, event: TraceEvent) {
   if (event.type === 'text') return;
+  if (event.type === 'tool_end' && event.ok && event.orderId) s.currentOrderId = event.orderId;
   s.trace.push({ time: event.time, type: event.type, tool: event.tool ?? '', ...(event.ok === undefined ? {} : { ok: event.ok }) });
   s.trace = s.trace.slice(-100);
   if (event.tool === 'search_aftercare_policy' && event.data && typeof event.data === 'object') {
@@ -62,9 +63,11 @@ export function registerWebRoutes(app: FastifyInstance, service: AftercareBacken
       const operation = await service.getOperation(s.actor, receipt.idempotencyKey);
       if (operation.status === 'completed') { requests.set(operation.request.id, operation.request); completed.add(receipt.quoteId); }
     }
-    const order = await service.getOrder(s.actor, s.actor.customerId === 'C-ALICE' ? 'O-1001' : 'O-2001');
+    // Older checkpoints did not save the selected order; derive it from their business records.
+    const orderId = s.currentOrderId ?? s.checkpoint.quotes.at(-1)?.orderId ?? [...requests.values()].at(-1)?.orderId;
+    const order = orderId ? await service.getOrder(s.actor, orderId) : null;
     const quotes = await Promise.all(s.checkpoint.quotes.filter(quote => !completed.has(quote.id)).map(async quote => {
-      const source = quote.orderId === order.id ? order : await service.getOrder(s.actor, quote.orderId);
+      const source = quote.orderId === order?.id ? order : await service.getOrder(s.actor, quote.orderId);
       const descriptions = await Promise.all(quote.actions.map(async action => {
         const name = source.lines.find(item => item.id === action.lineId)?.name ?? action.lineId;
         if (action.kind === 'return') return `退货 · ${name} × ${action.quantity}`;
@@ -115,16 +118,25 @@ export function registerWebRoutes(app: FastifyInstance, service: AftercareBacken
       if (!confirm && !action.trim()) throw new DomainError('EMPTY_MESSAGE', '请输入消息', 400);
       conversation = await create(actor, { checkpoint: s.checkpoint, onCheckpoint: persist });
       controller.signal.addEventListener('abort', () => conversation?.cancel(), { once: true });
-      if (confirm && !(await conversation.pendingQuotes()).some(q => q.id === action)) throw new DomainError('UNKNOWN_QUOTE', '方案已处理或不属于当前会话', 409);
+      if (confirm) {
+        const quote = (await conversation.pendingQuotes()).find(q => q.id === action);
+        if (!quote) throw new DomainError('UNKNOWN_QUOTE', '方案已处理或不属于当前会话', 409);
+        s.currentOrderId = quote.orderId;
+      }
       if (controller.signal.aborted) throw new DomainError('RUN_CANCELLED', '本轮已停止', 409);
       s.busy = true;
-      s.messages.push({ id: randomUUID(), role: 'user', text: confirm ? '我已确认方案，请提交售后申请。' : action, time: new Date().toISOString() });
+      const message: ChatMessage = {
+        id: randomUUID(), role: 'user',
+        text: confirm ? '我请求确认此方案并提交售后申请。' : action,
+        time: new Date().toISOString(),
+      };
+      s.messages.push(message);
       await persist(); // Accept a turn only after the user action is durable.
       reply.hijack(); started = true;
       reply.raw.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', 'x-accel-buffering': 'no' });
       reply.raw.once('close', disconnect);
       heartbeat = setInterval(() => { if (!reply.raw.destroyed) reply.raw.write(': heartbeat\n\n'); }, 15_000);
-      send('start', { busy: true });
+      send('start', { busy: true, message });
       try {
         const onEvent = (event: TraceEvent) => { remember(s, event); send('trace', event); };
         const result = await (confirm ? conversation.confirmAndContinue(action, onEvent, controller.signal) : conversation.run(action, onEvent));

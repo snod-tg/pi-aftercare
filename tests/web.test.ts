@@ -17,12 +17,14 @@ function result(body: string): WebSnapshot {
 }
 
 test('web SSE uses real Pi tools, returns policy evidence and requires the confirmation button before writing', async () => {
-  const state = createDemoState(); const service = new AftercareService(state);
+  const state = createDemoState();
+  state.orders.set('O-1002', { ...structuredClone(state.orders.get('O-1001')!), id: 'O-1002' });
+  const service = new AftercareService(state);
   const transport = mockApi((body, index) => {
     assert.match(messageText(body.messages[0]!), /点击方案卡片/);
     assert.doesNotMatch(messageText(body.messages[0]!), /当前终端的确认方式/);
-    if (index === 0) return { calls: [{ name: 'search_aftercare_policy', args: { orderId: 'O-1001', query: '退货期限 退款 换货' } }] };
-    if (index === 1) return { calls: [{ name: 'quote_aftercare', args: { orderId: 'O-1001', actions: [
+    if (index === 0) return { calls: [{ name: 'search_aftercare_policy', args: { orderId: 'O-1002', query: '退货期限 退款 换货' } }] };
+    if (index === 1) return { calls: [{ name: 'quote_aftercare', args: { orderId: 'O-1002', actions: [
       { kind: 'return', lineId: 'LINE-JACKET', quantity: 1 },
       { kind: 'exchange', lineId: 'LINE-TEE', quantity: 1, targetVariantId: 'SKU-TEE-L' },
     ] } }] };
@@ -39,11 +41,13 @@ test('web SSE uses real Pi tools, returns policy evidence and requires the confi
     const created = await app.inject({ method: 'POST', url: '/api/sessions', headers: auth, payload: {} });
     assert.equal(created.statusCode, 201); assert.equal(transport.requests.length, 0);
     const id = created.json().id as string;
+    assert.equal(created.json<WebSnapshot>().order, null);
     assert.equal((await app.inject({ url: `/api/sessions/${id}`, headers: { authorization: 'Bearer demo-bob' } })).statusCode, 404);
     assert.equal((await app.inject({ method: 'POST', url: `/api/sessions/${id}/messages`, headers: auth, payload: { content: 'a', customerId: 'C-BOB' } })).statusCode, 400);
     const first = await app.inject({ method: 'POST', url: `/api/sessions/${id}/messages`, headers: auth, payload: { content: '外套退掉，T恤换L' } });
     assert.equal(first.statusCode, 200); assert.match(first.headers['content-type']!, /text\/event-stream/);
     const snapshot = result(first.body);
+    assert.equal(snapshot.order?.id, 'O-1002');
     assert.equal(state.requests.size, 0); assert.equal(snapshot.quotes[0]?.refundCents, 19900);
     assert.ok(snapshot.quotes[0]?.descriptions.some(text => text.includes('L 码')));
     assert.ok(snapshot.evidence.length > 0);
@@ -51,14 +55,22 @@ test('web SSE uses real Pi tools, returns policy evidence and requires the confi
     assert.ok(snapshot.trace.some(trace => trace.tool === 'search_aftercare_policy' && trace.ok));
     const quoteId = snapshot.quotes[0]!.id;
     assert.equal((await app.inject({ method: 'POST', url: `/api/sessions/${id}/confirm`, headers: auth, payload: { quoteId, confirmationId: 'forged' } })).statusCode, 400);
-    assert.equal((await app.inject({ method: 'POST', url: `/api/sessions/${id}/confirm`, headers: auth, payload: { quoteId: 'forged' } })).statusCode, 409);
-    const second = result((await app.inject({ method: 'POST', url: `/api/sessions/${id}/confirm`, headers: auth, payload: { quoteId } })).body);
+    const rejected = await app.inject({ method: 'POST', url: `/api/sessions/${id}/confirm`, headers: auth, payload: { quoteId: 'forged' } });
+    assert.equal(rejected.statusCode, 409);
+    assert.doesNotMatch(rejected.body, /event: start/);
+    assert.deepEqual((await app.inject({ url: `/api/sessions/${id}`, headers: auth })).json<WebSnapshot>().messages, snapshot.messages);
+    const accepted = await app.inject({ method: 'POST', url: `/api/sessions/${id}/confirm`, headers: auth, payload: { quoteId } });
+    const second = result(accepted.body);
+    const start = accepted.body.match(/^event: start\ndata: (.+)$/m);
+    assert.ok(start?.[1]);
+    assert.deepEqual(JSON.parse(start[1]).message, second.messages[2]);
     assert.equal(state.requests.size, 1); assert.equal(second.quotes.length, 0);
     assert.equal(second.requests[0]?.refundStatus, 'not_started'); assert.equal(second.requests[0]?.status, 'awaiting_return');
-    assert.equal(second.order.lines.find(line => line.id === 'LINE-JACKET')?.requestedQuantity, 1);
+    assert.equal(second.order?.lines.find(line => line.id === 'LINE-JACKET')?.requestedQuantity, 1);
     assert.equal((await app.inject({ method: 'POST', url: `/api/sessions/${id}/confirm`, headers: auth, payload: { quoteId } })).statusCode, 409);
     assert.equal(state.requests.size, 1);
     const restored = (await app.inject({ url: `/api/sessions/${id}`, headers: auth })).json() as WebSnapshot;
+    assert.equal(restored.order?.id, 'O-1002');
     assert.equal(restored.messages.length, 4); assert.equal(restored.requests[0]?.id, second.requests[0]?.id);
     await app.inject({ method: 'DELETE', url: `/api/sessions/${id}`, headers: auth });
     assert.equal((await app.inject({ url: `/api/sessions/${id}`, headers: auth })).statusCode, 404);

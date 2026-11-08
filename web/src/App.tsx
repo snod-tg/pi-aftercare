@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
 import { ArrowRight, ArrowUp, Check, CheckCheck, ChevronDown, CircleHelp, Clock3, FileText, LoaderCircle, MessageSquare, Package, Plus, RotateCcw, ShieldCheck, Shirt, Square, X } from 'lucide-react';
 import { api, ApiError, restoreSession, streamTurn, type QuoteView, type WebSnapshot } from './api';
-import type { ToolTrace, SessionSummary } from '../../src/http/web-types';
+import type { ChatMessage, ToolTrace, SessionSummary } from '../../src/http/web-types';
 const money = (cents: number) => new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(cents / 100);
 const time = (value: string) => new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 const toolLabels: Record<string, string> = {
@@ -86,10 +86,14 @@ export function App() {
     const id = session.id;
     lock.current = true; setWorking(true); setError(''); setLive(''); setLiveTools([]);
     if (!quoteId) setDraft('');
-    setSession(s => s ? { ...s, messages: [...s.messages, { id: crypto.randomUUID(), role: 'user', text: quoteId ? '我已确认方案，请提交售后申请。' : content.trim(), time: new Date().toISOString() }] } : s);
     try {
       await streamTurn(id, quoteId ? 'confirm' : 'messages', quoteId ? { quoteId } : { content: content.trim() }, (event, value) => {
-        if (event === 'trace') {
+        if (event === 'start') {
+          const { message } = value as { message: ChatMessage };
+          setSession(s => s?.id === id && !s.messages.some(item => item.id === message.id)
+            ? { ...s, messages: [...s.messages, message] }
+            : s);
+        } else if (event === 'trace') {
           const trace = value as ({ type: 'text'; text: string } | ToolTrace);
           if (trace.type === 'text') setLive(text => text + (trace.text ?? ''));
           else setLiveTools(tools => [...tools, trace]);
@@ -151,7 +155,7 @@ export function App() {
           </div>
         </section>
         <aside className={`context-panel ${showDetails ? 'mobile-open' : ''}`} aria-label="订单与处理记录"><div className="context-title"><h2>本次售后</h2><button className="icon-button mobile-close" aria-label="关闭订单与处理记录" onClick={() => setShowDetails(false)}><X size={18}/></button><span>ORDER CONTEXT</span></div>
-          <section className="order-card"><div className="order-heading"><span><Package size={16}/>当前订单</span><strong className="delivered">{session?.order.status === 'delivered' ? '已签收' : session ? '待签收' : '加载中'}</strong></div><div className="order-id">{session?.order.id ?? '—'}<span>模拟订单</span></div><div className="order-items">{session?.order.lines.map((line, i) => <div className="order-item" key={line.id}><div className={`product-icon product-${i}`}><Shirt size={27} strokeWidth={1.4}/></div><div className="product-info"><strong>{line.name}</strong><small>数量 {line.quantity} · 已申请 {line.requestedQuantity}</small><span>{money(line.paidUnitCents)}</span></div></div>)}</div><div className="order-total"><span>订单实付</span><strong>{session ? money(session.order.lines.reduce((sum, line) => sum + line.paidUnitCents * line.quantity, 0)) : '—'}</strong></div></section>
+          <section className="order-card"><div className="order-heading"><span><Package size={16}/>当前订单</span><strong className="delivered">{session?.order?.status === 'delivered' ? '已签收' : session?.order ? '待签收' : '未选择订单'}</strong></div><div className="order-id">{session?.order?.id ?? '—'}<span>模拟订单</span></div><div className="order-items">{session?.order?.lines.map((line, i) => <div className="order-item" key={line.id}><div className={`product-icon product-${i}`}><Shirt size={27} strokeWidth={1.4}/></div><div className="product-info"><strong>{line.name}</strong><small>数量 {line.quantity} · 已申请 {line.requestedQuantity}</small><span>{money(line.paidUnitCents)}</span></div></div>)}</div><div className="order-total"><span>订单实付</span><strong>{session?.order ? money(session.order.lines.reduce((sum, line) => sum + line.paidUnitCents * line.quantity, 0)) : '—'}</strong></div></section>
           <section className="evidence-section"><div className="section-heading"><h3><ShieldCheck size={16}/>政策依据</h3><span>{session?.evidence.length ?? 0} 条</span></div>{!session?.evidence.length ? <div className="empty-evidence"><FileText size={21}/><p>助手查询政策后，<br/>相关条款会展示在这里。</p></div> : session.evidence.map(evidence => <details className="evidence-card" key={evidence.citation}><summary><span>{evidence.title}</span><ChevronDown size={14}/></summary><p>{evidence.text}</p><small>{evidence.citation}</small><small>政策 {evidence.policyVersion} · 检索于 {time(evidence.retrievedAt)}</small></details>)}</section>
           <section ref={records} className="trace-section"><div className="section-heading"><h3><Clock3 size={16}/>处理记录</h3><span>{trace.filter(t => t.type === 'tool_end').length} 次工具结果</span></div>{trace.length ? <ol className="trace-list">{trace.slice(-12).map((event, index) => <li key={`${index}-${event.time}`}><span className={`trace-dot ${event.type === 'tool_start' ? 'pending' : event.ok ? 'ok' : 'failed'}`}>{event.type === 'tool_end' && event.ok && <Check size={9}/>}</span><div><strong>{toolLabels[event.tool] ?? event.tool}</strong><small>{time(event.time)} · {event.type === 'tool_start' ? '开始' : event.ok ? '执行成功' : '执行失败'}</small></div></li>)}</ol> : <p className="empty-trace">发送需求后，这里会显示实际处理过程。</p>}{session?.lastRun && <div className="run-stats">本轮 {session.lastRun.modelCalls} 次模型调用 · {session.lastRun.toolCalls} 次工具调用<br/>{session.lastRun.tokens.toLocaleString()} tokens · {session.lastRun.status === 'completed' ? '本轮处理结束' : statusLabels[session.lastRun.status] ?? session.lastRun.status}</div>}</section>
           <div className="context-footer"><span className="status-dot"/>Pi Agent SDK<span>·</span>{meta?.model || '外部模型 API'}<br/><small>{meta?.persistent ? '业务数据由 PostgreSQL 保存' : '演示数据保存在内存中'} · {meta?.sessionPersistent ? '对话已持久化保存' : '对话仅当前服务有效'}</small></div>
@@ -163,5 +167,5 @@ export function App() {
 
 function QuoteCard({ quote, busy, now, confirm }: { quote: QuoteView; busy: boolean; now: number; confirm: () => void }) {
   const expired = now >= Date.parse(quote.expiresAt);
-  return <div className="quote-card"><div className="quote-heading"><span><FileText size={17}/>请确认退换货方案</span><span className="quote-tag">{expired ? '已过期' : '待你确认'}</span></div><div className="quote-lines">{quote.descriptions.map((description, i) => <div key={i}><Check size={14}/>{description}</div>)}</div><div className="quote-refund"><span>预计退款</span><strong>{money(quote.refundCents)}</strong></div><div className="quote-bottom"><small><Clock3 size={12}/>{expired ? '请让助手重新生成方案' : `有效至 ${time(quote.expiresAt)}`}</small><button onClick={confirm} disabled={busy || expired}>确认并提交<ArrowRight size={15}/></button></div><details className="quote-reference"><summary>查看方案编号<ChevronDown size={12}/></summary><code>{quote.id}</code><span>政策版本：{quote.policyVersion}</span></details></div>;
+  return <div className="quote-card"><div className="quote-heading"><span><FileText size={17}/>请确认退换货方案 · {quote.orderId}</span><span className="quote-tag">{expired ? '已过期' : '待你确认'}</span></div><div className="quote-lines">{quote.descriptions.map((description, i) => <div key={i}><Check size={14}/>{description}</div>)}</div><div className="quote-refund"><span>预计退款</span><strong>{money(quote.refundCents)}</strong></div><div className="quote-bottom"><small><Clock3 size={12}/>{expired ? '请让助手重新生成方案' : `有效至 ${time(quote.expiresAt)}`}</small><button onClick={confirm} disabled={busy || expired}>确认并提交<ArrowRight size={15}/></button></div><details className="quote-reference"><summary>查看方案编号<ChevronDown size={12}/></summary><code>{quote.id}</code><span>政策版本：{quote.policyVersion}</span></details></div>;
 }

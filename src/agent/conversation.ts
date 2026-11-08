@@ -48,6 +48,7 @@ export interface TraceEvent {
   tool?: string;
   ok?: boolean;
   data?: unknown;
+  orderId?: string;
 }
 
 export interface RunResult {
@@ -274,8 +275,14 @@ export class AgentConversation {
       } else if (event.type === "tool_execution_start") {
         emit({ type: "tool_start", tool: event.toolName });
       } else if (event.type === "tool_execution_end") {
+        const details: unknown = event.result.details;
+        const orderId = !event.isError && details && typeof details === "object"
+          ? event.toolName === "get_order" && "id" in details ? details.id
+            : event.toolName === "quote_aftercare" && "orderId" in details ? details.orderId : undefined
+          : undefined;
         emit({ type: "tool_end", tool: event.toolName, ok: !event.isError,
-          ...(event.toolName === "search_aftercare_policy" && !event.isError ? { data: event.result.details } : {}) });
+          ...(typeof orderId === "string" ? { orderId } : {}),
+          ...(event.toolName === "search_aftercare_policy" && !event.isError ? { data: details } : {}) });
       } else if (event.type === "message_end" && event.message.role === "assistant") {
         text = event.message.content.filter((part) => part.type === "text").map((part) => part.text).join("");
         if (event.message.stopReason === "error") {

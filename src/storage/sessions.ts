@@ -12,6 +12,7 @@ export interface SavedSession {
   touched: number;
   busy: boolean;
   checkpoint: ConversationCheckpoint;
+  currentOrderId?: string;
   messages: ChatMessage[];
   trace: ToolTrace[];
   evidence: PolicyEvidence[];

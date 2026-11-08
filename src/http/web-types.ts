@@ -8,7 +8,7 @@ export interface SessionSummary { id: string; title: string; updatedAt: string; 
 export interface WebSnapshot {
   id: string;
   busy: boolean;
-  order: Order;
+  order: Order | null;
   messages: ChatMessage[];
   quotes: QuoteView[];
   requests: AftercareRequest[];
