@@ -13,7 +13,8 @@ import { DomainError } from '../domain/errors.js';
 import type { Actor } from '../domain/types.js';
 import { MemorySessionStore, type SavedSession, type SessionStore } from '../storage/sessions.js';
 import { demoActor } from './demo-auth.js';
-import type { ChatMessage, PolicyEvidence, WebSnapshot } from './web-types.js';
+import { buildSessionSnapshot } from './session-snapshot.js';
+import type { ChatMessage, PolicyEvidence } from './web-types.js';
 
 export type ConversationFactory = (
   actor: Actor,
@@ -105,55 +106,6 @@ export function registerWebRoutes(
     for (const run of active.values()) run.controller.abort();
     await Promise.all([...active.values()].map((run) => run.done));
   });
-  const snapshot = async (s: SavedSession): Promise<WebSnapshot> => {
-    // Read actual business operations even if a process died just after committing a write.
-    const requests = new Map(s.requests.map((request) => [request.id, request]));
-    const completed = new Set<string>();
-    for (const receipt of s.checkpoint.receipts) {
-      const operation = await service.getOperation(s.actor, receipt.idempotencyKey);
-      if (operation.status === 'completed') {
-        requests.set(operation.request.id, operation.request);
-        completed.add(receipt.quoteId);
-      }
-    }
-    // Older checkpoints did not save the selected order; derive it from their business records.
-    const orderId =
-      s.currentOrderId ??
-      s.checkpoint.quotes.at(-1)?.orderId ??
-      [...requests.values()].at(-1)?.orderId;
-    const order = orderId ? await service.getOrder(s.actor, orderId) : null;
-    const quotes = await Promise.all(
-      s.checkpoint.quotes
-        .filter((quote) => !completed.has(quote.id))
-        .map(async (quote) => {
-          const source =
-            quote.orderId === order?.id ? order : await service.getOrder(s.actor, quote.orderId);
-          const descriptions = await Promise.all(
-            quote.actions.map(async (action) => {
-              const name =
-                source.lines.find((item) => item.id === action.lineId)?.name ?? action.lineId;
-              if (action.kind === 'return') return `退货 · ${name} × ${action.quantity}`;
-              const target = (
-                await service.listVariants(s.actor, quote.orderId, action.lineId)
-              ).find((item) => item.id === action.targetVariantId);
-              return `换货 · ${name} → ${target?.size ?? action.targetVariantId} 码 × ${action.quantity}`;
-            }),
-          );
-          return { ...quote, descriptions };
-        }),
-    );
-    return {
-      id: s.id,
-      busy: s.busy,
-      order,
-      messages: s.messages,
-      quotes,
-      requests: [...requests.values()],
-      evidence: s.evidence,
-      trace: s.trace,
-      ...(s.lastRun ? { lastRun: s.lastRun } : {}),
-    };
-  };
   const read = async (actor: Actor, id: string) => {
     let value = await store.load(actor, id);
     if (value.busy && !active.has(id)) {
@@ -272,7 +224,7 @@ export function registerWebRoutes(
         s.requests = [...receipts.values()];
         s.busy = false;
         await persist(); // No successful SSE result is announced before the checkpoint commits.
-        send('result', await snapshot(s));
+        send('result', await buildSessionSnapshot(service, s));
       } catch (error) {
         s.busy = false;
         const message =
@@ -338,7 +290,7 @@ export function registerWebRoutes(
         evidence: [],
         requests: [],
       };
-      const view = await snapshot(session);
+      const view = await buildSessionSnapshot(service, session);
       await store.create(session);
       return reply.code(201).send(view);
     } finally {
@@ -348,7 +300,8 @@ export function registerWebRoutes(
   app.get<{ Params: { id: string } }>(
     '/api/sessions/:id',
     { schema: { params } },
-    async (request) => snapshot(await read(demoActor(request), request.params.id)),
+    async (request) =>
+      buildSessionSnapshot(service, await read(demoActor(request), request.params.id)),
   );
   app.post<{ Params: { id: string }; Body: { content: string } }>(
     '/api/sessions/:id/messages',

@@ -2,10 +2,10 @@ import pg from 'pg';
 import type { PoolClient } from 'pg';
 import { readFile } from 'node:fs/promises';
 import { AftercareService } from '../domain/aftercare.js';
-import type { AftercareBackend } from '../domain/backend.js';
+import type { AftercareBackend, SessionReadQuery } from '../domain/backend.js';
 import { DomainError } from '../domain/errors.js';
 import { createDemoState } from '../domain/seed.js';
-import type { Actor, DemoState } from '../domain/types.js';
+import type { Actor, AftercareAction, CreateRequestInput, DemoState } from '../domain/types.js';
 
 const maps = {
   order: 'orders',
@@ -124,73 +124,93 @@ export class PostgresAftercareService implements AftercareBackend {
         );
     });
   }
-  private async run<K extends keyof AftercareBackend>(
-    method: K,
-    write: boolean,
-    args: Parameters<AftercareService[K]>,
-  ): Promise<ReturnType<AftercareService[K]>> {
-    const actor = args[0] as Actor;
+  private assertMerchant(actor: Actor) {
     if (actor.merchantId !== this.merchantId)
       throw new DomainError('NOT_FOUND', '资源不存在或不属于当前商家', 404);
-    return this.transaction(write, async (client) => {
-      const tenant = await client.query(
-        `SELECT merchant_id FROM tenants WHERE merchant_id=$1${write ? ' FOR UPDATE' : ''}`,
-        [this.merchantId],
-      );
-      if (!tenant.rowCount) throw new Error('数据库未初始化，请先运行 db:init');
-      const result = await client.query<RecordRow>(
-        'SELECT kind,id,body FROM resources WHERE merchant_id=$1 ORDER BY kind,id',
-        [this.merchantId],
-      );
-      const state = decode(result.rows);
-      const old = new Map(
-        result.rows.map((row) => [`${row.kind}:${row.id}`, JSON.stringify(row.body)]),
-      );
-      const service = new AftercareService(state, this.options.now ?? (() => new Date()));
-      const value = (service[method] as (...params: unknown[]) => unknown).apply(service, args);
-      if (write) {
-        for (const row of rows(state)) {
-          const body = JSON.stringify(row.body);
-          if (old.get(`${row.kind}:${row.id}`) !== body) {
-            await client.query(
-              'INSERT INTO resources(merchant_id,kind,id,body) VALUES($1,$2,$3,$4::jsonb) ON CONFLICT(merchant_id,kind,id) DO UPDATE SET body=EXCLUDED.body',
-              [this.merchantId, row.kind, row.id, body],
-            );
-          }
-        }
-        await client.query('UPDATE tenants SET revision=revision+1 WHERE merchant_id=$1', [
-          this.merchantId,
-        ]);
-      }
-      return value as ReturnType<AftercareService[K]>;
+  }
+
+  private async loadRecords(client: PoolClient, forUpdate: boolean) {
+    const tenant = await client.query(
+      `SELECT merchant_id FROM tenants WHERE merchant_id=$1${forUpdate ? ' FOR UPDATE' : ''}`,
+      [this.merchantId],
+    );
+    if (!tenant.rowCount) throw new Error('数据库未初始化，请先运行 db:init');
+    const result = await client.query<RecordRow>(
+      'SELECT kind,id,body FROM resources WHERE merchant_id=$1 ORDER BY kind,id',
+      [this.merchantId],
+    );
+    return result.rows;
+  }
+
+  private async read<T>(actor: Actor, operation: (service: AftercareService) => T): Promise<T> {
+    this.assertMerchant(actor);
+    return this.transaction(false, async (client) => {
+      const records = await this.loadRecords(client, false);
+      return operation(new AftercareService(decode(records), this.options.now));
     });
   }
-  getOrder(...args: Parameters<AftercareService['getOrder']>) {
-    return this.run('getOrder', false, args);
+
+  private async write<T>(actor: Actor, operation: (service: AftercareService) => T): Promise<T> {
+    this.assertMerchant(actor);
+    return this.transaction(true, async (client) => {
+      const records = await this.loadRecords(client, true);
+      const before = new Map(
+        records.map((row) => [`${row.kind}:${row.id}`, JSON.stringify(row.body)]),
+      );
+      const state = decode(records);
+      const result = operation(new AftercareService(state, this.options.now));
+      await this.persistChanges(client, before, state);
+      return result;
+    });
   }
-  getPolicy(...args: Parameters<AftercareService['getPolicy']>) {
-    return this.run('getPolicy', false, args);
+
+  private async persistChanges(
+    client: PoolClient,
+    before: ReadonlyMap<string, string>,
+    state: DemoState,
+  ) {
+    for (const row of rows(state)) {
+      const body = JSON.stringify(row.body);
+      if (before.get(`${row.kind}:${row.id}`) === body) continue;
+      await client.query(
+        'INSERT INTO resources(merchant_id,kind,id,body) VALUES($1,$2,$3,$4::jsonb) ON CONFLICT(merchant_id,kind,id) DO UPDATE SET body=EXCLUDED.body',
+        [this.merchantId, row.kind, row.id, body],
+      );
+    }
+    await client.query('UPDATE tenants SET revision=revision+1 WHERE merchant_id=$1', [
+      this.merchantId,
+    ]);
   }
-  listVariants(...args: Parameters<AftercareService['listVariants']>) {
-    return this.run('listVariants', false, args);
+
+  getOrder(actor: Actor, orderId: string) {
+    return this.read(actor, (service) => service.getOrder(actor, orderId));
   }
-  listPendingQuotes(...args: Parameters<AftercareService['listPendingQuotes']>) {
-    return this.run('listPendingQuotes', false, args);
+  getPolicy(actor: Actor, orderId: string) {
+    return this.read(actor, (service) => service.getPolicy(actor, orderId));
   }
-  quote(...args: Parameters<AftercareService['quote']>) {
-    return this.run('quote', true, args);
+  listVariants(actor: Actor, orderId: string, lineId: string) {
+    return this.read(actor, (service) => service.listVariants(actor, orderId, lineId));
   }
-  confirmQuote(...args: Parameters<AftercareService['confirmQuote']>) {
-    return this.run('confirmQuote', true, args);
+  listPendingQuotes(actor: Actor) {
+    return this.read(actor, (service) => service.listPendingQuotes(actor));
   }
-  getRequest(...args: Parameters<AftercareService['getRequest']>) {
-    return this.run('getRequest', false, args);
+  quote(actor: Actor, orderId: string, actions: AftercareAction[]) {
+    return this.write(actor, (service) => service.quote(actor, orderId, actions));
   }
-  getOperation(...args: Parameters<AftercareService['getOperation']>) {
-    return this.run('getOperation', false, args);
+  confirmQuote(actor: Actor, quoteId: string) {
+    return this.write(actor, (service) => service.confirmQuote(actor, quoteId));
   }
-  createRequest(...args: Parameters<AftercareService['createRequest']>) {
-    return this.run('createRequest', true, args);
+  getRequest(actor: Actor, requestId: string) {
+    return this.read(actor, (service) => service.getRequest(actor, requestId));
+  }
+  getOperation(actor: Actor, idempotencyKey: string) {
+    return this.read(actor, (service) => service.getOperation(actor, idempotencyKey));
+  }
+  createRequest(actor: Actor, input: CreateRequestInput) {
+    return this.write(actor, (service) => service.createRequest(actor, input));
+  }
+  readSessionData(actor: Actor, query: SessionReadQuery) {
+    return this.read(actor, (service) => service.readSessionData(actor, query));
   }
   close() {
     return this.pool.end();

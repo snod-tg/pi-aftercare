@@ -60,6 +60,12 @@ export interface Quote {
   confirmationRequired: true;
 }
 
+export interface CreateRequestInput {
+  quoteId: string;
+  confirmationId: string;
+  idempotencyKey: string;
+}
+
 export interface Confirmation {
   idempotencyKey: string;
   id: string;

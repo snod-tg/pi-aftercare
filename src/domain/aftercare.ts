@@ -1,17 +1,22 @@
 import { randomUUID } from 'node:crypto';
+import type {
+  AftercareBackend,
+  OperationResult,
+  SessionBusinessData,
+  SessionReadQuery,
+} from './backend.js';
 import { DomainError } from './errors.js';
 import { createDemoState } from './seed.js';
 import type {
   Actor,
   AftercareAction,
   AftercareRequest,
+  CreateRequestInput,
   DemoState,
   Order,
   Quote,
   Variant,
 } from './types.js';
-
-type CreateRequestInput = { quoteId: string; confirmationId: string; idempotencyKey: string };
 
 function requireId(value: string, label: string) {
   if (typeof value !== 'string' || !value.trim() || value.length > 120) {
@@ -19,7 +24,7 @@ function requireId(value: string, label: string) {
   }
 }
 
-export class AftercareService {
+export class AftercareService implements AftercareBackend {
   // Synchronous operations have no await points: validate everything before committing mutations.
   // This is a single-process simulator, not a durable or multi-process transaction implementation.
   constructor(
@@ -44,6 +49,7 @@ export class AftercareService {
   }
 
   getPolicy(actor: Actor, orderId: string) {
+    // Verify order ownership before returning the merchant’s current policy.
     this.order(actor, orderId);
     return structuredClone(this.state.policy);
   }
@@ -208,11 +214,40 @@ export class AftercareService {
     return structuredClone(this.owned(this.state.requests.get(requestId), actor, '售后申请'));
   }
 
-  getOperation(actor: Actor, idempotencyKey: string) {
+  getOperation(actor: Actor, idempotencyKey: string): OperationResult {
     const operation = this.state.operations.get(this.operationScope(actor, idempotencyKey));
     return operation
-      ? { status: 'completed' as const, request: this.getRequest(actor, operation.requestId) }
-      : { status: 'not_found' as const };
+      ? { status: 'completed', request: this.getRequest(actor, operation.requestId) }
+      : { status: 'not_found' };
+  }
+
+  readSessionData(actor: Actor, query: SessionReadQuery): SessionBusinessData {
+    const completedRequests = [...new Set(query.operationKeys)].flatMap((key) => {
+      const operation = this.getOperation(actor, key);
+      return operation.status === 'completed' ? [operation.request] : [];
+    });
+    const completedQuotes = new Set(completedRequests.map((request) => request.quoteId));
+    const orderIds = new Set([
+      ...query.orderIds,
+      ...query.quotes.map((quote) => quote.orderId),
+      ...completedRequests.map((request) => request.orderId),
+    ]);
+    const orders = new Map([...orderIds].map((id) => [id, this.getOrder(actor, id)]));
+    const targetSizes = new Map<string, string>();
+    for (const quote of query.quotes) {
+      if (completedQuotes.has(quote.id)) continue;
+      const order = orders.get(quote.orderId);
+      for (const action of quote.actions) {
+        if (action.kind !== 'exchange') continue;
+        const line = order?.lines.find((item) => item.id === action.lineId);
+        const original = line && this.state.variants.get(line.variantId);
+        const target = this.state.variants.get(action.targetVariantId);
+        if (target && original?.productId === target.productId) {
+          targetSizes.set(target.id, target.size);
+        }
+      }
+    }
+    return { orders, completedRequests, targetSizes };
   }
 
   createRequest(actor: Actor, input: CreateRequestInput): AftercareRequest {

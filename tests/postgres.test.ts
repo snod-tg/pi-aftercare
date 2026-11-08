@@ -94,6 +94,22 @@ test('real PostgreSQL: durable restart, atomic rollback, concurrent inventory an
     } finally {
       await reopened.close();
     }
+    // Order, quote and operation lookups use one business read transaction.
+    const quote = winner.actor === DEMO_ALICE ? qa : qb;
+    let acquisitions = 0;
+    const countAcquisition = () => {
+      acquisitions++;
+    };
+    b.pool.on('acquire', countAcquisition);
+    const projection = await b.readSessionData(winner.actor, {
+      orderIds: [quote.orderId, quote.orderId],
+      operationKeys: [winner.input.idempotencyKey, 'unknown-operation'],
+      quotes: [quote],
+    });
+    b.pool.off('acquire', countAcquisition);
+    assert.equal(acquisitions, 1);
+    assert.equal(projection.orders.get(quote.orderId)?.version, 2);
+    assert.deepEqual(projection.completedRequests, [original]);
     const counts = await a.pool.query(
       `SELECT count(*)::int AS count FROM "${schema}".resources WHERE kind='request'`,
     );
