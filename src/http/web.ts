@@ -5,8 +5,8 @@ import type { Actor } from '../domain/types.js';
 import type { SessionStore } from '../storage/sessions.js';
 import { demoActor, protectDemoRoutes } from './demo-auth.js';
 import { createEventStream } from './sse.js';
-import { WebSessions, type ConversationFactory, type TurnCommand } from './session-service.js';
-import type { ServiceMeta } from './web-types.js';
+import { WebSessions, type ConversationFactory } from './session-service.js';
+import type { ServiceMeta, TurnCommand } from './web-types.js';
 
 export type { ConversationFactory } from './session-service.js';
 

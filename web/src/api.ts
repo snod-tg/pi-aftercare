@@ -1,6 +1,7 @@
-import type { WebSnapshot } from '../../src/http/web-types';
+import type { TurnCommand, WebSnapshot, WebTurnEvent } from '../../src/http/web-types';
 export type { WebSnapshot, QuoteView } from '../../src/http/web-types';
-const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer demo-alice' };
+import { demoProfile } from './demo-profile';
+const headers = { 'Content-Type': 'application/json', Authorization: demoProfile.authorization };
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -22,10 +23,12 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
 }
 export async function streamTurn(
   id: string,
-  action: 'messages' | 'confirm',
-  body: unknown,
-  onEvent: (event: string, data: unknown) => void,
+  command: TurnCommand,
+  onEvent: (event: WebTurnEvent) => void,
 ) {
+  const action = command.kind === 'confirm' ? 'confirm' : 'messages';
+  const body =
+    command.kind === 'confirm' ? { quoteId: command.quoteId } : { content: command.content };
   const response = await fetch(`/api/sessions/${id}/${action}`, {
     method: 'POST',
     headers,
@@ -57,8 +60,8 @@ export async function streamTurn(
           .filter((line) => line.startsWith('data: '))
           .map((line) => line.slice(6))
           .join('\n');
-        if (event && raw) {
-          onEvent(event, JSON.parse(raw));
+        if (isTurnEventType(event) && raw) {
+          onEvent({ type: event, data: JSON.parse(raw) } as WebTurnEvent);
           if (event === 'result' || event === 'error') finished = true;
         }
       }
@@ -70,3 +73,7 @@ export async function streamTurn(
   }
 }
 export const restoreSession = (id: string) => api<WebSnapshot>(`/sessions/${id}`);
+
+function isTurnEventType(value: string | undefined): value is WebTurnEvent['type'] {
+  return value === 'start' || value === 'trace' || value === 'result' || value === 'error';
+}

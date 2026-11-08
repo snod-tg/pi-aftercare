@@ -1,3 +1,4 @@
+/* Design tokens and base elements */
 :root {
   font-family:
     Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -54,6 +55,7 @@ button {
 button:not(:disabled):active {
   transform: translateY(1px);
 }
+/* App shell and navigation */
 .app-shell {
   display: flex;
   height: 100dvh;
@@ -216,6 +218,7 @@ button:not(:disabled):active {
   border-radius: 50%;
   margin-left: auto;
 }
+/* Workspace and conversation header */
 .main-area {
   display: flex;
   flex-direction: column;
@@ -328,6 +331,7 @@ button:not(:disabled):active {
 .status-dot.warning {
   background: #c49661;
 }
+/* Chat viewport and welcome prompts */
 .chat-scroll {
   flex: 1;
   overflow: auto;
@@ -424,6 +428,7 @@ button:not(:disabled):active {
   align-items: center;
   justify-content: center;
 }
+/* Message composer and controls */
 .composer-area {
   padding: 18px 38px 17px;
   background: linear-gradient(transparent, #fafbf8 16%);
@@ -503,6 +508,7 @@ button:not(:disabled):active {
   line-height: 1.8;
   margin: 10px 2px 0;
 }
+/* Context panel and order summary */
 .context-panel {
   width: 313px;
   flex-shrink: 0;
@@ -632,6 +638,7 @@ button:not(:disabled):active {
   font-size: 14px;
   font-weight: 500;
 }
+/* Policy evidence and tool trace */
 .section-heading {
   display: flex;
   align-items: center;
@@ -777,6 +784,7 @@ button:not(:disabled):active {
   font-size: 8px;
   color: #94a287;
 }
+/* Messages, streaming and recovery */
 .messages {
   max-width: 700px;
   margin: 0 auto;
@@ -824,6 +832,7 @@ button:not(:disabled):active {
   font-size: 8px;
   color: #95a387;
 }
+/* Compact typography overrides */
 .bubble {
   font-size: 12px;
   line-height: 1.9;
@@ -914,6 +923,7 @@ button:not(:disabled):active {
   gap: 8px;
   padding: 10px 0 20px;
 }
+/* Quote confirmation */
 .quote-card {
   border: 1px solid #cfdcc2;
   background: #f6f9f1;
@@ -1021,6 +1031,7 @@ button:not(:disabled):active {
   font-size: 9px;
   margin-top: 7px;
 }
+/* Aftercare receipt */
 .receipt {
   margin: 15px 0 23px 38px;
   background: #f5f9f1;
@@ -1090,6 +1101,7 @@ button:not(:disabled):active {
   padding-top: 12px;
   margin-bottom: 0;
 }
+/* Errors and shared icon buttons */
 .error-banner {
   display: flex;
   align-items: center;
@@ -1129,6 +1141,7 @@ button:not(:disabled):active {
 .mobile-close {
   display: none;
 }
+/* Motion */
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -1224,6 +1237,7 @@ button:not(:disabled):active {
 .welcome-hint {
   font-size: 11px;
 }
+/* Responsive layouts */
 @media (min-width: 1500px) {
   .sidebar {
     width: 250px;
@@ -1484,6 +1498,7 @@ button:not(:disabled):active {
     font-size: 10px;
   }
 }
+/* Reduced motion and compact viewport adjustments */
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;

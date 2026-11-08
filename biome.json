@@ -34,7 +34,8 @@
       "correctness": {
         "noUnusedImports": "error",
         "noUnusedVariables": "error",
-        "useHookAtTopLevel": "error"
+        "useHookAtTopLevel": "error",
+        "useExhaustiveDependencies": "error"
       },
       "suspicious": {
         "noDebugger": "error",

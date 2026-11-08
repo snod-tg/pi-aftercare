@@ -35,10 +35,19 @@ export async function buildSessionSnapshot(
       });
       return { ...quote, descriptions };
     });
+  const order = orderId ? orders.get(orderId) : undefined;
   return {
     id: session.id,
     busy: session.busy,
-    order: orderId ? (orders.get(orderId) ?? null) : null,
+    order: order
+      ? {
+          ...order,
+          paidTotalCents: order.lines.reduce(
+            (total, line) => total + line.paidUnitCents * line.quantity,
+            0,
+          ),
+        }
+      : null,
     messages: session.messages,
     quotes,
     requests: [...requests.values()],

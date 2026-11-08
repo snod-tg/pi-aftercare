@@ -41,10 +41,18 @@ export interface SessionSummary {
   updatedAt: string;
   messageCount: number;
 }
+export interface OrderView extends Order {
+  paidTotalCents: number;
+}
+
+export type TurnCommand =
+  | { kind: 'message'; content: string }
+  | { kind: 'confirm'; quoteId: string };
+
 export interface WebSnapshot {
   id: string;
   busy: boolean;
-  order: Order | null;
+  order: OrderView | null;
   messages: ChatMessage[];
   quotes: QuoteView[];
   requests: AftercareRequest[];

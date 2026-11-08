@@ -115,6 +115,7 @@ test('web SSE uses real Pi tools, returns policy evidence and requires the confi
     assert.match(first.headers['content-type']!, /text\/event-stream/);
     const snapshot = result(first.body);
     assert.equal(snapshot.order?.id, 'O-1002');
+    assert.equal(snapshot.order?.paidTotalCents, 29800);
     assert.equal(state.requests.size, 0);
     assert.equal(snapshot.quotes[0]?.refundCents, 19900);
     assert.ok(snapshot.quotes[0]?.descriptions.some((text) => text.includes('L 码')));

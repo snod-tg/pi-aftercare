@@ -17,16 +17,12 @@ import {
   type SessionStore,
 } from '../storage/sessions.js';
 import { buildSessionSnapshot } from './session-snapshot.js';
-import type { ChatMessage, PolicyEvidence, WebTurnEvent } from './web-types.js';
+import type { ChatMessage, PolicyEvidence, TurnCommand, WebTurnEvent } from './web-types.js';
 
 export type ConversationFactory = (
   actor: Actor,
   restore: ConversationRestore,
 ) => Promise<AgentConversation>;
-export type TurnCommand =
-  | { kind: 'message'; content: string }
-  | { kind: 'confirm'; quoteId: string };
-
 export interface TurnEvents {
   open(onDisconnect: () => void): void;
   send(event: WebTurnEvent): void;
