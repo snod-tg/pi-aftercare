@@ -25,9 +25,9 @@ export interface Order {
   id: string;
   merchantId: string;
   customerId: string;
-  status: "delivered" | "pending";
+  status: 'delivered' | 'pending';
   deliveredAt: string;
-  currency: "CNY";
+  currency: 'CNY';
   version: number;
   lines: OrderLine[];
 }
@@ -41,8 +41,8 @@ export interface Policy {
 }
 
 export type AftercareAction =
-  | { kind: "return"; lineId: string; quantity: number }
-  | { kind: "exchange"; lineId: string; quantity: number; targetVariantId: string };
+  | { kind: 'return'; lineId: string; quantity: number }
+  | { kind: 'exchange'; lineId: string; quantity: number; targetVariantId: string };
 
 export interface Quote {
   id: string;
@@ -54,7 +54,7 @@ export interface Quote {
   inventoryVersions: Record<string, number>;
   actions: AftercareAction[];
   refundCents: number;
-  currency: "CNY";
+  currency: 'CNY';
   createdAt: string;
   expiresAt: string;
   confirmationRequired: true;
@@ -79,9 +79,9 @@ export interface AftercareRequest {
   idempotencyKey: string;
   actions: AftercareAction[];
   refundCents: number;
-  currency: "CNY";
-  status: "awaiting_return";
-  refundStatus: "not_started";
+  currency: 'CNY';
+  status: 'awaiting_return';
+  refundStatus: 'not_started';
   createdAt: string;
 }
 

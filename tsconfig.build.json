@@ -5,13 +5,6 @@
     "outDir": "dist",
     "sourceMap": true
   },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "scripts",
-    "node_modules",
-    "dist",
-    "src/evaluation"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["scripts", "node_modules", "dist", "src/evaluation"]
 }
